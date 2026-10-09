@@ -4,7 +4,11 @@ function getCurrentPublisherId() {
         const key = "campusLostFoundPublisherId";
         let id = localStorage.getItem(key);
         if (!id) {
-            id = crypto.randomUUID();
+            if (window.crypto && typeof window.crypto.randomUUID === "function") {
+                id = window.crypto.randomUUID();
+            } else {
+                id = "publisher-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+            }
             localStorage.setItem(key, id);
         }
         return id;
