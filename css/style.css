@@ -396,7 +396,8 @@ button {
     margin-bottom: 22px;
 }
 
-#publishForm label {
+#publishForm label,
+#editForm label {
     display: block;
     margin: 17px 0 8px;
     color: #444;
@@ -405,8 +406,11 @@ button {
 }
 
 #publishForm input,
+#editForm input,
 #publishForm select,
-#publishForm textarea {
+#editForm select,
+#publishForm textarea,
+#editForm textarea {
     width: 100%;
     padding: 12px;
     border: 1px solid #e2e2e2;
@@ -464,3 +468,5 @@ button {
     color: #333;
     font-size: 12px;
 }
+
+#editFeedback, #mineFeedback { padding: 12px; margin-bottom: 12px; border-radius: 8px; }\n#editFeedback { background: #fff1f0; color: #a12622; }\n#mineFeedback { background: #e8f5e9; color: #226638; }\n#editType:disabled { background: #f4f5f7; color: #666; }\n
