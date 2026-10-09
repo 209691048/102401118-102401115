@@ -492,7 +492,7 @@ function markFound(id) {
     if (!requireOwnership(item)) return;
 
     if (getItemStatus(item) === getCompletedStatus(item)) {
-        alert("这条信息已经标记为" + getCompletedStatus(item) + "。");
+        showAppModal("这条信息已经标记为" + getCompletedStatus(item) + "。", "状态提示");
         return;
     }
 
