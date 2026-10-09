@@ -37,6 +37,8 @@ function requireOwnership(item) {
 
 let editingItemId = null;
 let mineFeedbackTimer = null;
+let returnedUndoTimer = null;
+const RETURN_UNDO_WINDOW_MS = 3 * 60 * 1000;
 let currentType = "全部";
 let currentKeyword = "";
 let currentItemId = null;
@@ -195,6 +197,8 @@ function switchPage(name, title) {
         }
     }
 
+    if (name === "mine") scheduleMineUndoExpiry(readItems());
+    else if (returnedUndoTimer) { clearTimeout(returnedUndoTimer); returnedUndoTimer = null; }
     window.scrollTo(0, 0);
 }
 
@@ -209,6 +213,36 @@ function getItemStatus(item) {
         return getCompletedStatus(item);
     }
     return item.status || "待处理";
+}
+
+
+function canUndoReturned(item, now) {
+    if (!item || item.type !== "招领" || getItemStatus(item) !== "已归还") return false;
+    const markedAt = Number(item.statusUpdatedAt);
+    const currentTime = typeof now === "number" ? now : Date.now();
+    return Number.isFinite(markedAt) && markedAt <= currentTime &&
+        currentTime - markedAt <= RETURN_UNDO_WINDOW_MS;
+}
+
+function scheduleMineUndoExpiry(items) {
+    if (returnedUndoTimer) {
+        clearTimeout(returnedUndoTimer);
+        returnedUndoTimer = null;
+    }
+    if (currentPage !== "mine") return;
+
+    const now = Date.now();
+    const nextExpiry = items
+        .filter(function (item) { return isOwnItem(item) && canUndoReturned(item, now); })
+        .map(function (item) { return Number(item.statusUpdatedAt) + RETURN_UNDO_WINDOW_MS; })
+        .sort(function (a, b) { return a - b; })[0];
+    if (!nextExpiry) return;
+
+    returnedUndoTimer = setTimeout(function () {
+        returnedUndoTimer = null;
+        if (currentPage === "mine") renderMine();
+    }, Math.max(0, nextExpiry - Date.now() + 20));
+    if (returnedUndoTimer && typeof returnedUndoTimer.unref === "function") returnedUndoTimer.unref();
 }
 
 function renderItems() {
@@ -248,10 +282,10 @@ function renderItems() {
 
     itemList.innerHTML = filteredItems.map(function (item) {
         return `
+            <article class="item-card${getItemStatus(item) === "已归还" ? " item-returned" : ""}"
             <article class="item-card"
                 data-id="${Number(item.id)}"
                 tabindex="0"
-                role="button">
                 <div class="item-image">${escapeHTML(item.icon || "📦")}</div>
                 <div class="item-info">
                     <div class="item-header">
@@ -387,16 +421,16 @@ function renderMine() {
         document.getElementById("minePublishBtn").addEventListener("click", function () {
             openPublishPage();
         });
+        scheduleMineUndoExpiry(items);
+        document.getElementById("minePublishBtn").addEventListener("click", function () {
+            openPublishPage();
+        });
 
         return;
+            <article class="item-card${getItemStatus(item) === "已归还" ? " item-returned" : ""}">
     }
 
     mineList.innerHTML = items.map(function (item) {
-        return `
-            <article class="item-card">
-                <div class="item-image">${escapeHTML(item.icon || "📦")}</div>
-
-                <div class="item-info">
                     <div class="item-header">
                         <span class="item-title">${escapeHTML(item.title)}</span>
                         <span class="type-tag">${escapeHTML(item.type)}</span>
@@ -416,9 +450,10 @@ function renderMine() {
                         <button type="button" data-action="found" data-id="${Number(item.id)}">
                             ${getItemStatus(item) === getCompletedStatus(item) ? escapeHTML(getItemStatus(item)) : "标记" + escapeHTML(getCompletedStatus(item))}
                         </button>
+                        ${canUndoReturned(item) ? '<button type="button" data-action="undo-return" data-id="' + Number(item.id) + '" title="标记已归还后的3分钟内可撤销">撤销归还</button>' : ""}
+                        </button>
                         <button type="button" data-action="delete" data-id="${Number(item.id)}">
                             删除
-                        </button>
                     </div>
                 </div>
             </article>
@@ -436,16 +471,19 @@ function renderMine() {
                 editItem(id);
             } else if (action === "found") {
                 markFound(id);
+            } else if (action === "undo-return") {
+                undoReturned(id);
+            } else if (action === "found") {
+                markFound(id);
             } else if (action === "delete") {
                 deleteItem(id);
+    });
+    scheduleMineUndoExpiry(items);
+}
+
             }
         });
     });
-}
-
-function editItem(id) {
-    const item = readItems().find(function (entry) { return Number(entry.id) === Number(id); });
-    if (!requireOwnership(item)) return;
     editingItemId = Number(item.id);
     const fields = { Title: "title", Type: "type", Location: "location", Date: "date",
         Description: "description", ContactName: "contactName", Contact: "contact" };
@@ -538,21 +576,55 @@ function markFound(id) {
     }
 
     item.status = getCompletedStatus(item);
+    if (item.type === "招领") item.statusUpdatedAt = Date.now();
+    else delete item.statusUpdatedAt;
 
     try {
         saveItems(items);
         renderMine();
         renderItems();
-        showAppModal("已更新为" + getCompletedStatus(item) + "。", "状态更新成功");
+        showAppModal(
+            item.type === "招领"
+                ? "已更新为已归还。如需撤销，可在3分钟内到“我的发布”操作。"
+                : "已更新为已找到。",
+            "状态更新成功"
+        );
     } catch (error) {
         console.error("更新状态失败：", error);
         alert("更新失败，请重试。");
     }
 }
 
-function deleteItem(id) {
+function undoReturned(id) {
     const items = readItems();
-    const target = items.find(function (item) { return Number(item.id) === Number(id); });
+    const item = items.find(function (entry) {
+        return Number(entry.id) === Number(id);
+    });
+
+    if (!requireOwnership(item)) return;
+    if (!canUndoReturned(item)) {
+        showAppModal("只有标记为“已归还”后的3分钟内才能撤销。", "无法撤销");
+        renderMine();
+        return;
+    }
+
+    item.status = "待处理";
+    delete item.statusUpdatedAt;
+
+    try {
+        saveItems(items);
+        renderMine();
+        renderItems();
+        showAppModal("状态已恢复为待处理。", "撤销成功");
+    } catch (error) {
+        console.error("撤销归还状态失败：", error);
+        showAppModal("撤销失败，请重试。", "操作失败");
+    }
+}
+
+function markFound(id) {
+    const items = readItems();
+    const item = items.find(function (entry) {
     if (!requireOwnership(target)) return;
 
     showAppConfirm("确定要删除这条物品信息吗？删除后无法直接恢复。", "确认删除", function () {
