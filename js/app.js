@@ -83,6 +83,19 @@ function switchPage(name, title) {
     window.scrollTo(0, 0);
 }
 
+// 寻物完成后为“已找到”，招领完成后为“已归还”。
+function getCompletedStatus(item) {
+    return item.type === "招领" ? "已归还" : "已找到";
+}
+
+function getItemStatus(item) {
+    // 兼容旧版本把招领信息保存为“已找到”的数据。
+    if (item.status === "已找到" || item.status === "已归还") {
+        return getCompletedStatus(item);
+    }
+    return item.status || "待处理";
+}
+
 function renderItems() {
     if (!itemList || !resultCount) {
         console.error("找不到 itemList 或 resultCount，请检查 index.html。");
@@ -133,7 +146,7 @@ function renderItems() {
                     <div class="item-location">📍 ${escapeHTML(item.location)}</div>
                     <div class="item-date">🕒 ${escapeHTML(item.date)}</div>
                     <div class="item-description">${escapeHTML(item.description)}</div>
-                    ${item.status === "已找到" ? '<div class="item-status">已找到</div>' : ""}
+                    ${getItemStatus(item) === getCompletedStatus(item) ? '<div class="item-status">' + escapeHTML(getItemStatus(item)) + '</div>' : ""}
                 </div>
             </article>
         `;
@@ -181,7 +194,7 @@ function openDetail(id) {
 
             <div class="detail-title-row">
                 <h2 class="detail-title">${escapeHTML(item.title)}</h2>
-                <span class="detail-status">${escapeHTML(item.status || "待处理")}</span>
+                <span class="detail-status">${escapeHTML(getItemStatus(item))}</span>
             </div>
 
             <div class="detail-info-row">
@@ -286,7 +299,7 @@ function renderMine() {
                             编辑
                         </button>
                         <button type="button" data-action="found" data-id="${Number(item.id)}">
-                            ${item.status === "已找到" ? "已标记找到" : "标记已找到"}
+                            ${getItemStatus(item) === getCompletedStatus(item) ? escapeHTML(getItemStatus(item)) : "标记" + escapeHTML(getCompletedStatus(item))}
                         </button>
                         <button type="button" data-action="delete" data-id="${Number(item.id)}">
                             删除
@@ -366,12 +379,12 @@ function markFound(id) {
         return;
     }
 
-    if (item.status === "已找到") {
-        alert("这条信息已经标记为已找到。");
+    if (getItemStatus(item) === getCompletedStatus(item)) {
+        alert("这条信息已经标记为" + getCompletedStatus(item) + "。");
         return;
     }
 
-    item.status = "已找到";
+    item.status = getCompletedStatus(item);
 
     try {
         saveItems(items);
