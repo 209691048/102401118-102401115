@@ -1,36 +1,126 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
-<html>
+<!DOCTYPE html>
+<html lang="zh-CN">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-  <meta http-equiv="Content-Style-Type" content="text/css">
-  <title></title>
-  <meta name="Generator" content="Cocoa HTML Writer">
-  <meta name="CocoaVersion" content="2575.5">
-  <style type="text/css">
-    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
-    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校园寻物</title>
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<p class="p1">&lt;!DOCTYPE html&gt;</p>
-<p class="p1">&lt;html lang="zh-CN"&gt;</p>
-<p class="p1">&lt;head&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;meta charset="UTF-8"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;title&gt;校园寻物&lt;/title&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;link rel="stylesheet" href="css/style.css"&gt;</p>
-<p class="p1">&lt;/head&gt;</p>
-<p class="p2"><br></p>
-<p class="p1">&lt;body&gt;</p>
-<p class="p2"><br></p>
-<p class="p1">&lt;div id="app"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;!-- 页面内容将在这里实现 --&gt;</p>
-<p class="p1">&lt;/div&gt;</p>
-<p class="p2"><br></p>
-<p class="p1">&lt;script src="js/data.js"&gt;&lt;/script&gt;</p>
-<p class="p1">&lt;script src="js/app.js"&gt;&lt;/script&gt;</p>
-<p class="p2"><br></p>
-<p class="p1">&lt;/body&gt;</p>
-<p class="p1">&lt;/html&gt;</p>
+<div class="app">
+    <header class="top-bar">
+        <button id="backBtn" class="back-btn" hidden>‹</button>
+        <h1 id="pageTitle">校园寻物</h1>
+    </header>
+
+    <main class="main-content">
+        <section id="homePage">
+            <div class="search-box">
+                <span class="search-icon">⌕</span>
+                <input type="text" id="searchInput" placeholder="搜索物品名称">
+                <button id="searchBtn">搜索</button>
+            </div>
+
+            <div class="category-tabs">
+                <button class="category-btn active" data-type="全部">全部</button>
+                <button class="category-btn" data-type="寻物">寻物</button>
+                <button class="category-btn" data-type="招领">招领</button>
+            </div>
+
+            <section class="section">
+                <div class="section-title">
+                    <h2>最新信息</h2>
+                    <span id="resultCount"></span>
+                </div>
+                <div id="itemList" class="item-list"></div>
+            </section>
+        </section>
+
+<section id="detailPage" hidden>
+    <div id="detailContent"></div>
+</section>
+
+<section id="publishPage" hidden>
+    <div class="form-card">
+        <h2>发布失物招领</h2>
+        <p class="form-tip">请填写物品信息，方便同学们查找。</p>
+
+        <form id="publishForm">
+            <label for="itemTitle">物品名称 *</label>
+            <input id="itemTitle" name="title" type="text"
+                   placeholder="例如：黑色校园卡" maxlength="40" required>
+
+            <label for="itemType">信息类型 *</label>
+            <select id="itemType" name="type" required>
+                <option value="寻物">寻物（我丢失了物品）</option>
+                <option value="招领">招领（我捡到了物品）</option>
+            </select>
+
+            <label for="itemLocation">地点 *</label>
+            <input id="itemLocation" name="location" type="text"
+                   placeholder="例如：图书馆二楼" maxlength="80" required>
+
+            <label for="itemDate">日期 *</label>
+            <input id="itemDate" name="date" type="date" required>
+
+            <label for="itemDescription">详细描述 *</label>
+            <textarea id="itemDescription" name="description"
+                      placeholder="请描述物品特征、遗失或捡到的情况"
+                      maxlength="500" rows="4" required></textarea>
+
+            <label for="itemContactName">联系人</label>
+            <input id="itemContactName" name="contactName" type="text"
+                   placeholder="可以填写昵称" maxlength="30">
+
+            <label for="itemContact">联系方式</label>
+            <input id="itemContact" name="contact" type="text"
+                   placeholder="建议使用校园内安全、合适的联系方式"
+                   maxlength="100">
+
+            <button class="primary-btn" type="submit">提交发布</button>
+            <button class="secondary-btn" type="button" id="cancelPublishBtn">
+                取消
+            </button>
+        </form>
+    </div>
+</section>
+
+<section id="successPage" hidden>
+    <div class="success-card">
+        <div class="success-icon">✓</div>
+        <h2>发布成功</h2>
+        <p>你的信息已经保存，可以返回首页查看。</p>
+        <button class="primary-btn" id="successHomeBtn">返回首页</button>
+        <button class="secondary-btn" id="successMineBtn">查看我的发布</button>
+    </div>
+</section>
+
+<section id="minePage" hidden>
+    <div class="section-title">
+        <h2>我的发布</h2>
+        <span id="mineCount"></span>
+    </div>
+    <div id="mineList" class="item-list"></div>
+</section>
+    </main>
+
+    <nav class="bottom-nav">
+        <button class="nav-btn active" id="homeNavBtn">
+            <span>⌂</span>
+            <small>首页</small>
+        </button>
+        <button class="nav-btn" id="publishNavBtn">
+            <span>＋</span>
+            <small>发布</small>
+        </button>
+        <button class="nav-btn" id="mineNavBtn">
+            <span>♙</span>
+            <small>我的</small>
+        </button>
+    </nav>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>
