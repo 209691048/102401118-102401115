@@ -24,6 +24,28 @@
   await go("测试9：状态更新显示独立弹窗",async()=>{const d=(await load(base)).document;d.getElementById("mineNavBtn").click();d.querySelector('[data-action="found"][data-id="1"]').click();assert(saved()[0].status==="已找到","状态错误");const modal=d.getElementById("appModal");assert(!modal.hidden,"状态弹窗未显示");assert(d.getElementById("appModalMessage").textContent.includes("已找到"),"弹窗内容错误");d.getElementById("appModalClose").click();assert(modal.hidden,"确定后弹窗未关闭")});
   await go("测试10：重复标记提示显示独立弹窗",async()=>{const d=(await load(base)).document;d.getElementById("mineNavBtn").click();const button=d.querySelector('[data-action="found"][data-id="2"]');button.click();assert(saved().find(x=>x.id===2).status==="已归还","状态错误");d.getElementById("appModalClose").click();button.click();const modal=d.getElementById("appModal");assert(!modal.hidden,"重复标记弹窗未显示");assert(d.getElementById("appModalTitle").textContent==="状态提示","弹窗标题错误");assert(d.getElementById("appModalMessage").textContent.includes("已归还"),"弹窗内容错误");d.getElementById("appModalClose").click();assert(modal.hidden,"确定后弹窗未关闭")});
   await go("测试11：删除确认使用独立弹窗",async()=>{const d=(await load(base)).document;d.getElementById("mineNavBtn").click();d.querySelector('[data-action="delete"][data-id="1"]').click();const modal=d.getElementById("appModal");assert(!modal.hidden,"删除确认弹窗未显示");assert(d.getElementById("appModalMessage").textContent.includes("删除后无法直接恢复"),"确认文案错误");d.getElementById("appModalCancel").click();assert(modal.hidden,"取消后弹窗未关闭");assert(saved().some(x=>x.id===1),"取消删除后记录消失");d.querySelector('[data-action="delete"][data-id="1"]').click();d.getElementById("appModalClose").click();assert(!saved().some(x=>x.id===1),"确认后记录仍存在");assert(!modal.hidden,"删除成功提示未显示");assert(d.getElementById("appModalTitle").textContent==="删除成功","成功提示标题错误");d.getElementById("appModalClose").click();assert(modal.hidden,"成功提示未关闭")});
+  await go("测试12：已归还物品淡化且3分钟内可撤销",async()=>{
+   const d=(await load(base)).document;
+   d.getElementById("mineNavBtn").click();
+   d.querySelector('[data-action="found"][data-id="2"]').click();
+   const returned=saved().find(x=>x.id===2);
+   assert(returned.status==="已归还" && typeof returned.statusUpdatedAt==="number","未记录归还时间");
+   const undo=d.querySelector('[data-action="undo-return"][data-id="2"]');
+   assert(undo,"未显示撤销按钮");
+   assert(undo.closest(".item-card").classList.contains("item-returned"),"已归还卡片未淡化");
+   undo.click();
+   const restored=saved().find(x=>x.id===2);
+   assert(restored.status==="待处理" && !("statusUpdatedAt" in restored),"撤销后状态错误");
+   assert(!d.querySelector('[data-action="undo-return"][data-id="2"]'),"撤销后按钮仍显示");
+  });
+  await go("测试13：超过3分钟后隐藏撤销入口",async()=>{
+   const expired=clone(base);
+   expired[1].status="已归还";
+   expired[1].statusUpdatedAt=Date.now()-180001;
+   const d=(await load(expired)).document;
+   d.getElementById("mineNavBtn").click();
+   assert(!d.querySelector('[data-action="undo-return"][data-id="2"]'),"过期后仍显示撤销按钮");
+  });
  }finally{oldData===null?localStorage.removeItem(KEY):localStorage.setItem(KEY,oldData);oldOwner===null?localStorage.removeItem(OWNER):localStorage.setItem(OWNER,oldOwner);summary.textContent="测试结束：通过 "+p+" 项，失败 "+f+" 项。";run.disabled=false}}
  run.addEventListener("click",all);
 })();
