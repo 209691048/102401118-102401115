@@ -540,14 +540,7 @@ if (mineNavBtn) {
 }
 
 if (backBtn) {
-    backBtn.addEventListener("click", function () {
-        if (currentPage === "mine") {
-            renderMine();
-            switchPage("mine", "我的发布");
-        } else {
-            goHome();
-        }
-    });
+    backBtn.addEventListener("click", goHome);
 }
 
 const cancelPublishBtn = document.getElementById("cancelPublishBtn");
