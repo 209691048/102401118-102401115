@@ -26,14 +26,34 @@ tests/ownership-test.cjs   Node 逻辑测试
 
 ## 运行方法
 
-保持目录结构不变，使用 Google Chrome 打开根目录的 index.html，不需要安装前端框架。发布信息后可在“我的发布”中进入独立编辑页。数据保存在当前浏览器的 localStorage 中，不跨设备同步。
+保持目录结构不变，使用 Google Chrome 打开根目录的 `index.html`，即可直接运行主网页，不需要安装前端框架。
 
-## 测试方法
+发布信息后可在“我的发布”中进入独立编辑页。数据保存在当前浏览器的 `localStorage` 中，不会跨浏览器或跨设备同步。
 
-使用 Chrome 打开 tests/test.html，点击“开始测试”。页面测试覆盖搜索、筛选、发布、空联系方式、独立编辑、取消编辑以及两种完成状态。Node 逻辑测试可在项目根目录执行：
+## 浏览器测试方法
+
+测试页通过 iframe 加载主网页。由于 Chrome 会限制直接使用 `file://` 打开的测试页访问 iframe，`tests/test.html` 不建议直接双击打开，应通过本地 HTTP 服务器运行。
+
+在项目根目录打开 PowerShell，执行：
+
+```powershell
+python -m http.server 8000
+```
+
+然后在 Chrome 打开：
+
+```text
+http://localhost:8000/tests/test.html
+```
+
+点击“开始测试”即可运行 10 个浏览器测试。
+
+## Node 测试
+
+Node 逻辑测试可在项目根目录执行：
 
 ```bash
 node tests/ownership-test.cjs
 ```
 
-GitHub Actions 会检查 JavaScript 语法并运行 Node 逻辑测试；浏览器页面测试需要在 Chrome 中手动运行。
+GitHub Actions 会检查 JavaScript 语法并运行 Node 逻辑测试；浏览器页面测试需要在 Chrome 中按上面的方式手动运行。
