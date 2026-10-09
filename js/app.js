@@ -1,3 +1,38 @@
+// 本地演示身份：同一浏览器共用身份，不代表服务器登录认证。
+function getCurrentPublisherId() {
+    try {
+        const key = "campusLostFoundPublisherId";
+        let id = localStorage.getItem(key);
+        if (!id) {
+            id = crypto.randomUUID();
+            localStorage.setItem(key, id);
+        }
+        return id;
+    } catch (error) {
+        console.error("无法保存发布者身份：", error);
+        return null;
+    }
+}
+
+function isOwnItem(item) {
+    const publisherId = getCurrentPublisherId();
+    return Boolean(publisherId && item && item.publisherId === publisherId);
+}
+
+function requireOwnership(item) {
+    if (!item) {
+        alert("未找到这条信息。");
+        return false;
+    }
+    if (!isOwnItem(item)) {
+        alert("只能修改自己发布的信息；旧版无归属信息仅供浏览。");
+        return false;
+    }
+    return true;
+}
+
+let editingItemId = null;
+let mineFeedbackTimer = null;
 let currentType = "全部";
 let currentKeyword = "";
 let currentItemId = null;
@@ -11,6 +46,7 @@ const pageTitle = document.getElementById("pageTitle");
 const backBtn = document.getElementById("backBtn");
 
 const pages = {
+    edit: document.getElementById("editPage"),
     home: document.getElementById("homePage"),
     detail: document.getElementById("detailPage"),
     publish: document.getElementById("publishPage"),
@@ -47,6 +83,7 @@ function switchPage(name, title) {
         return;
     }
 
+    if (currentPage === "edit" && name !== "edit") editingItemId = null;
     currentPage = name;
 
     Object.entries(pages).forEach(function ([key, element]) {
@@ -247,7 +284,7 @@ function openDetail(id) {
 }
 
 function renderMine() {
-    const items = readItems();
+    const items = readItems().filter(isOwnItem);
     const mineList = document.getElementById("mineList");
     const mineCount = document.getElementById("mineCount");
 
@@ -329,44 +366,85 @@ function renderMine() {
 }
 
 function editItem(id) {
-    const items = readItems();
-    const item = items.find(function (entry) {
-        return Number(entry.id) === Number(id);
+    const item = readItems().find(function (entry) { return Number(entry.id) === Number(id); });
+    if (!requireOwnership(item)) return;
+    editingItemId = Number(item.id);
+    const fields = { Title: "title", Type: "type", Location: "location", Date: "date",
+        Description: "description", ContactName: "contactName", Contact: "contact" };
+    Object.entries(fields).forEach(function ([suffix, key]) {
+        document.getElementById("edit" + suffix).value = item[key] || "";
     });
+    document.getElementById("editFeedback").hidden = true;
+    document.getElementById("mineFeedback").hidden = true;
+    switchPage("edit", "编辑信息");
+}
 
-    if (!item) {
-        alert("未找到这条信息。");
+function showEditError(message) {
+    const feedback = document.getElementById("editFeedback");
+    feedback.textContent = message;
+    feedback.hidden = false;
+}
+
+function showMineSuccess(message) {
+    const feedback = document.getElementById("mineFeedback");
+    if (!feedback) return;
+
+    if (mineFeedbackTimer) clearTimeout(mineFeedbackTimer);
+    feedback.textContent = message;
+    feedback.hidden = false;
+    mineFeedbackTimer = setTimeout(function () {
+        feedback.hidden = true;
+        mineFeedbackTimer = null;
+    }, 2500);
+}
+
+function cancelEdit() {
+    editingItemId = null;
+    renderMine();
+    switchPage("mine", "我的发布");
+}
+
+function saveEdit(event) {
+    event.preventDefault();
+    // 保存时重新读取并检查归属，防止编辑期间记录被删除或归属改变。
+    const items = readItems();
+    const item = items.find(function (entry) { return Number(entry.id) === editingItemId; });
+    if (!item || !isOwnItem(item)) {
+        showEditError("信息不存在或不属于当前用户，无法保存。");
         return;
     }
-
-    const title = prompt("请输入物品名称：", item.title);
-    if (title === null) return;
-
-    const location = prompt("请输入地点：", item.location);
-    if (location === null) return;
-
-    const description = prompt("请输入详细描述：", item.description);
-    if (description === null) return;
-
-    if (!title.trim() || !location.trim() || !description.trim()) {
-        alert("物品名称、地点和描述不能为空。");
+    const values = {};
+    const fields = { Title: "title", Location: "location", Date: "date",
+        Description: "description", ContactName: "contactName", Contact: "contact" };
+    Object.entries(fields).forEach(function ([suffix, key]) {
+        values[key] = document.getElementById("edit" + suffix).value.trim();
+    });
+    if (!values.title || !values.location || !values.date || !values.description || !values.contact) {
+        showEditError("物品名称、地点、日期、描述和联系方式不能为空。");
         return;
     }
-
-    item.title = title.trim();
-    item.location = location.trim();
-    item.description = description.trim();
-
+    if (values.title.length > 40 || values.location.length > 80 || values.description.length > 500 ||
+        values.contactName.length > 30 || values.contact.length > 100) {
+        showEditError("内容超过长度限制，请缩短后再保存。");
+        return;
+    }
+    // 只修改可编辑字段，保留 ID、发布者、信息类型及完成状态。
+    Object.assign(item, values);
     try {
         saveItems(items);
-        renderMine();
-        renderItems();
-        alert("信息修改成功！");
     } catch (error) {
-        console.error("保存修改失败：", error);
-        alert("保存失败，请检查浏览器存储空间或设置。");
+        showEditError("保存失败，请检查浏览器存储设置后重试；填写内容已保留。");
+        return;
     }
+    renderItems();
+    cancelEdit();
+    showMineSuccess("信息修改成功。");
 }
+
+const editForm = document.getElementById("editForm");
+if (editForm) editForm.addEventListener("submit", saveEdit);
+const cancelEditBtn = document.getElementById("cancelEditBtn");
+if (cancelEditBtn) cancelEditBtn.addEventListener("click", cancelEdit);
 
 function markFound(id) {
     const items = readItems();
@@ -374,10 +452,7 @@ function markFound(id) {
         return Number(entry.id) === Number(id);
     });
 
-    if (!item) {
-        alert("未找到这条信息。");
-        return;
-    }
+    if (!requireOwnership(item)) return;
 
     if (getItemStatus(item) === getCompletedStatus(item)) {
         alert("这条信息已经标记为" + getCompletedStatus(item) + "。");
@@ -398,11 +473,14 @@ function markFound(id) {
 }
 
 function deleteItem(id) {
+    const items = readItems();
+    const target = items.find(function (item) { return Number(item.id) === Number(id); });
+    if (!requireOwnership(target)) return;
+
     const confirmed = confirm("确定要删除这条物品信息吗？删除后无法直接恢复。");
 
     if (!confirmed) return;
 
-    const items = readItems();
     const remainingItems = items.filter(function (item) {
         return Number(item.id) !== Number(id);
     });
@@ -496,12 +574,8 @@ if (mineNavBtn) {
 
 if (backBtn) {
     backBtn.addEventListener("click", function () {
-        if (currentPage === "mine") {
-            renderMine();
-            switchPage("mine", "我的发布");
-        } else {
-            goHome();
-        }
+        if (currentPage === "edit") cancelEdit();
+        else goHome();
     });
 }
 
@@ -525,14 +599,20 @@ if (publishForm) {
         const contactName = document.getElementById("itemContactName").value.trim();
         const contact = document.getElementById("itemContact").value.trim();
 
-        if (!title || !location || !date || !description) {
+        if (!title || !location || !date || !description || !contact) {
             alert("请填写所有带 * 的必填项。");
             return;
         }
 
+        const publisherId = getCurrentPublisherId();
+        if (!publisherId) {
+            alert("无法保存发布者身份，请允许浏览器本地存储后重试。");
+            return;
+        }
         const items = readItems();
 
         items.unshift({
+            publisherId: publisherId,
             id: Date.now(),
             title: title,
             type: type,

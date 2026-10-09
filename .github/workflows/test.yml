@@ -1,0 +1,34 @@
+name: Campus Lost Found Tests
+
+on:
+  push:
+    branches:
+      - main
+      - "fix-*"
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check js/app.js
+          node --check js/data.js
+          node --check tests/browser-test.js
+          node --check tests/ownership-test.cjs
+
+      - name: Run ownership and edit tests
+        run: node tests/ownership-test.cjs
+        # trigger pull request check
