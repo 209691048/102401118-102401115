@@ -152,6 +152,11 @@ button {
     transition: transform .15s ease, box-shadow .15s ease;
 }
 
+.item-card.item-returned {
+    opacity: .62;
+    filter: grayscale(.7);
+}
+
 .item-card:hover {
     transform: translateY(-1px);
     box-shadow: 0 5px 18px rgba(0, 0, 0, .06);
@@ -457,6 +462,7 @@ button {
 
 .mine-item-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-top: 10px;
 }
