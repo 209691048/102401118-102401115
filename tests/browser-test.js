@@ -10,7 +10,7 @@
   {id:4,publisherId:TEST_OWNER,title:"白色耳机",type:"招领",location:"食堂",date:"2026-10-03",description:"捡到耳机",contact:"test@example.com",status:"待处理"}];
  const clone=x=>JSON.parse(JSON.stringify(x)), saved=()=>JSON.parse(localStorage.getItem(KEY)||"[]");
  const assert=(x,m)=>{if(!x)throw Error(m||"断言失败")};
- async function load(items){localStorage.setItem(KEY,JSON.stringify(clone(items)));localStorage.setItem(OWNER,TEST_OWNER);return new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(Error("加载超时")),10000);frame.onload=()=>{clearTimeout(t);const w=frame.contentWindow;w.alert=()=>{};w.confirm=()=>true;resolve(w)};frame.src="../index.html?test="+Date.now()})}
+ async function load(items){localStorage.setItem(KEY,JSON.stringify(clone(items)));localStorage.setItem(OWNER,TEST_OWNER);return new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(Error("加载超时")),10000);frame.onload=()=>{clearTimeout(t);const w=frame.contentWindow;w.alert=()=>{};w.confirm=()=>true;setTimeout(()=>resolve(w),100)};frame.src="../index.html?test="+Date.now()})}
  async function caseRun(name,fn){try{await fn();const li=document.createElement("li");li.className="pass";li.textContent="✅ "+name+"：通过";results.appendChild(li);return true}catch(e){const li=document.createElement("li");li.className="fail";li.textContent="❌ "+name+"："+e.message;results.appendChild(li);details.textContent+=name+"\n"+(e.stack||e.message)+"\n\n";return false}}
  async function all(){run.disabled=true;results.innerHTML="";details.textContent="";let p=0,f=0;const go=async(n,fn)=>{(await caseRun(n,fn))?p++:f++};try{
   await go("测试1：首页显示4条",async()=>{const d=(await load(base)).document;assert(d.querySelectorAll("#itemList .item-card").length===4,"数量错误")});
