@@ -56,4 +56,4 @@ Node 逻辑测试可在项目根目录执行：
 node tests/ownership-test.cjs
 ```
 
-GitHub Actions 会检查 JavaScript 语法并运行 Node 逻辑测试；浏览器页面测试需要在 Chrome 中按上面的方式手动运行。
+GitHub Actions 会检查 JavaScript 语法、运行 Node 逻辑测试，并使用 Chromium 自动运行浏览器界面测试。浏览器测试也可在本地按上面的方式手动运行。

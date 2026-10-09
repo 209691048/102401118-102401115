@@ -469,4 +469,7 @@ button {
     font-size: 12px;
 }
 
-#editFeedback, #mineFeedback { padding: 12px; margin-bottom: 12px; border-radius: 8px; }\n#editFeedback { background: #fff1f0; color: #a12622; }\n#mineFeedback { background: #e8f5e9; color: #226638; }\n#editType:disabled { background: #f4f5f7; color: #666; }\n
+#editFeedback, #mineFeedback { padding: 12px; margin-bottom: 12px; border-radius: 8px; }
+#editFeedback { background: #fff1f0; color: #a12622; }
+#mineFeedback { background: #e8f5e9; color: #226638; }
+#editType:disabled { background: #f4f5f7; color: #666; }
