@@ -5,10 +5,10 @@ const path = require('node:path');
 let items, writes, prompts, confirms, alerts, storage, blocked;
 const elements = new Map();
 function element(id) {
- if (!elements.has(id)) elements.set(id, {value:'',innerHTML:'',hidden:false,listeners:{},addEventListener(n,f){this.listeners[n]=f},querySelectorAll(){return []},classList:{add(){},remove(){}},reset(){}});
+ if (!elements.has(id)) elements.set(id, {value:'',innerHTML:'',hidden:false,listeners:{},addEventListener(n,f){this.listeners[n]=f},querySelectorAll(){return []},classList:{add(){},remove(){}},reset(){},focus(){}});
  return elements.get(id);
 }
-const ctx = vm.createContext({console:{error(){}},setTimeout,clearTimeout,crypto:{randomUUID(){return 'generated-owner'}},localStorage:{getItem(k){if(blocked)throw Error('blocked');return storage.get(k)||null},setItem(k,v){if(blocked)throw Error('blocked');storage.set(k,v)}},alert(m){alerts.push(m)},prompt(){return prompts.shift() ?? null},confirm(){confirms++;return true},window:{scrollTo(){}},document:{readyState:'loading',getElementById:element,querySelectorAll(){return []},addEventListener(){}},getItems(){return structuredClone(items)},saveItems(v){items=structuredClone(v);writes++}});
+const ctx = vm.createContext({console:{error(){}},setTimeout,clearTimeout,crypto:{randomUUID(){return 'generated-owner'}},localStorage:{getItem(k){if(blocked)throw Error('blocked');return storage.get(k)||null},setItem(k,v){if(blocked)throw Error('blocked');storage.set(k,v)}},alert(m){alerts.push(m)},prompt(){return prompts.shift() ?? null},confirm(){confirms++;return true},window:{scrollTo(){},crypto:{randomUUID(){return 'generated-owner'}}},document:{readyState:'loading',getElementById:element,querySelectorAll(){return []},addEventListener(){}},getItems(){return structuredClone(items)},saveItems(v){items=structuredClone(v);writes++}});
 vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/app.js'),'utf8'),ctx);
 function reset(){storage=new Map([['campusLostFoundPublisherId','me']]);blocked=false;writes=0;prompts=[];confirms=0;alerts=[];items=[{id:1,publisherId:'me',type:'寻物',title:'本人',date:'2026-10-09',location:'图书馆',description:'描述',contact:'old@example.com',status:'待处理'},{id:2,publisherId:'other',title:'他人',type:'招领'},{id:3,title:'旧数据',type:'寻物'}];}
 function editValues(values) {
@@ -28,7 +28,7 @@ test('编辑空白联系方式不保存任何字段',()=>{editValues(['新名称
 test('取消编辑不保存',()=>{ctx.editItem(1);element('editTitle').value='未保存';ctx.cancelEdit();assert.equal(writes,0)});
 test('编辑超长联系方式不保存',()=>{editValues(['名称','地点','描述','联系人','x'.repeat(101)]);assert.equal(writes,0)});
 for(const [type,status] of [['寻物','已找到'],['招领','已归还']])test(type+'状态更新及三处展示',()=>{items[0].type=type;ctx.markFound(1);assert.equal(items[0].status,status);ctx.openDetail(1);for(const id of ['itemList','mineList','detailContent'])assert(element(id).innerHTML.includes(status));ctx.markFound(1);assert.equal(writes,1)});
-test('本人可以删除',()=>{ctx.deleteItem(1);assert.equal(items.length,2);assert.equal(writes,1)});
+test('本人可以删除',()=>{ctx.deleteItem(1);element('appModalClose').listeners.click();assert.equal(items.length,2);assert.equal(writes,1)});
 test('旧招领完成状态兼容',()=>{items[0].type='招领';items[0].status='已找到';assert.equal(ctx.getItemStatus(items[0]),'已归还')});
 test('首次身份生成且持久化',()=>{storage.clear();assert.equal(ctx.getCurrentPublisherId(),'generated-owner');assert.equal(storage.get('campusLostFoundPublisherId'),'generated-owner')});
 test('存储不可用时拒绝发布及维护',()=>{blocked=true;publish('a@example.com');ctx.markFound(1);assert.equal(writes,0)});

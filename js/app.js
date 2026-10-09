@@ -4,7 +4,11 @@ function getCurrentPublisherId() {
         const key = "campusLostFoundPublisherId";
         let id = localStorage.getItem(key);
         if (!id) {
-            id = crypto.randomUUID();
+            if (window.crypto && typeof window.crypto.randomUUID === "function") {
+                id = window.crypto.randomUUID();
+            } else {
+                id = "publisher-" + Date.now() + "-" + Math.random().toString(36).slice(2);
+            }
             localStorage.setItem(key, id);
         }
         return id;
@@ -45,6 +49,80 @@ const searchBtn = document.getElementById("searchBtn");
 const pageTitle = document.getElementById("pageTitle");
 const backBtn = document.getElementById("backBtn");
 
+const appModal = document.getElementById("appModal");
+const appModalTitle = document.getElementById("appModalTitle");
+const appModalMessage = document.getElementById("appModalMessage");
+const appModalClose = document.getElementById("appModalClose");
+const appModalCancel = document.getElementById("appModalCancel");
+let modalReturnFocus = null;
+let modalConfirmAction = null;
+
+function openAppModal(message, title) {
+    if (!appModal || !appModalMessage || !appModalTitle) return false;
+    modalReturnFocus = document.activeElement;
+    appModalTitle.textContent = title || "提示";
+    appModalMessage.textContent = message;
+    appModal.hidden = false;
+    if (appModalClose && typeof appModalClose.focus === "function") appModalClose.focus();
+    return true;
+}
+
+function showAppModal(message, title) {
+    modalConfirmAction = null;
+    if (appModalCancel) appModalCancel.hidden = true;
+    if (appModalClose) appModalClose.textContent = "确定";
+    openAppModal(message, title);
+}
+
+function showAppConfirm(message, title, onConfirm) {
+    if (!appModal || !appModalCancel || !appModalClose) return;
+    modalConfirmAction = onConfirm;
+    appModalCancel.hidden = false;
+    appModalClose.textContent = "删除";
+    openAppModal(message, title || "请确认");
+}
+
+function closeAppModal(confirmed) {
+    if (!appModal || appModal.hidden) return;
+    appModal.hidden = true;
+    const returnFocus = modalReturnFocus;
+    modalReturnFocus = null;
+    const action = modalConfirmAction;
+    modalConfirmAction = null;
+    if (confirmed && action) action();
+    if (returnFocus && returnFocus.isConnected && appModal.hidden) returnFocus.focus();
+}
+
+if (appModalClose) appModalClose.addEventListener("click", function () {
+    closeAppModal(true);
+});
+if (appModalCancel) appModalCancel.addEventListener("click", function () {
+    closeAppModal(false);
+});
+if (appModal) {
+    appModal.addEventListener("click", function (event) {
+        if (event.target === appModal) closeAppModal(false);
+    });
+}
+document.addEventListener("keydown", function (event) {
+    if (!appModal || appModal.hidden) return;
+    if (event.key === "Escape") {
+        closeAppModal(false);
+        return;
+    }
+    if (event.key === "Tab") {
+        const buttons = [appModalClose];
+        if (appModalCancel && !appModalCancel.hidden) buttons.unshift(appModalCancel);
+        const first = buttons[0], last = buttons[buttons.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
+    }
+});
 const pages = {
     edit: document.getElementById("editPage"),
     home: document.getElementById("homePage"),
@@ -455,7 +533,7 @@ function markFound(id) {
     if (!requireOwnership(item)) return;
 
     if (getItemStatus(item) === getCompletedStatus(item)) {
-        alert("这条信息已经标记为" + getCompletedStatus(item) + "。");
+        showAppModal("这条信息已经标记为" + getCompletedStatus(item) + "。", "状态提示");
         return;
     }
 
@@ -465,7 +543,7 @@ function markFound(id) {
         saveItems(items);
         renderMine();
         renderItems();
-        alert("已更新该信息的状态。");
+        showAppModal("已更新为" + getCompletedStatus(item) + "。", "状态更新成功");
     } catch (error) {
         console.error("更新状态失败：", error);
         alert("更新失败，请重试。");
@@ -477,23 +555,27 @@ function deleteItem(id) {
     const target = items.find(function (item) { return Number(item.id) === Number(id); });
     if (!requireOwnership(target)) return;
 
-    const confirmed = confirm("确定要删除这条物品信息吗？删除后无法直接恢复。");
+    showAppConfirm("确定要删除这条物品信息吗？删除后无法直接恢复。", "确认删除", function () {
+        const latestItems = readItems();
+        const latestTarget = latestItems.find(function (item) { return Number(item.id) === Number(id); });
+        if (!latestTarget || !isOwnItem(latestTarget)) {
+            showAppModal("信息不存在或不属于当前用户，无法删除。", "删除失败");
+            return;
+        }
+        const remainingItems = latestItems.filter(function (item) {
+            return Number(item.id) !== Number(id);
+        });
 
-    if (!confirmed) return;
-
-    const remainingItems = items.filter(function (item) {
-        return Number(item.id) !== Number(id);
+        try {
+            saveItems(remainingItems);
+            renderMine();
+            renderItems();
+            showAppModal("信息已删除。", "删除成功");
+        } catch (error) {
+            console.error("删除信息失败：", error);
+            showAppModal("删除失败，请重试。", "删除失败");
+        }
     });
-
-    try {
-        saveItems(remainingItems);
-        renderMine();
-        renderItems();
-        alert("信息已删除。");
-    } catch (error) {
-        console.error("删除信息失败：", error);
-        alert("删除失败，请重试。");
-    }
 }
 
 function goHome() {

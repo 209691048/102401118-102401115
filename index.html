@@ -85,6 +85,36 @@
     </div>
 </section>
 
+
+<section id="editPage" hidden>
+    <div class="form-card">
+        <h2>编辑信息</h2>
+        <p class="form-tip">修改后点击保存；取消或返回不会保存本次修改。</p>
+        <p id="editFeedback" role="alert" hidden></p>
+        <form id="editForm">
+            <label for="editTitle">物品名称 *</label>
+            <input id="editTitle" name="title" type="text" maxlength="40" required>
+            <label for="editType">信息类型</label>
+            <select id="editType" name="type" disabled>
+                <option value="寻物">寻物（我丢失了物品）</option>
+                <option value="招领">招领（我捡到了物品）</option>
+            </select>
+            <label for="editLocation">地点 *</label>
+            <input id="editLocation" name="location" type="text" maxlength="80" required>
+            <label for="editDate">日期 *</label>
+            <input id="editDate" name="date" type="date" required>
+            <label for="editDescription">详细描述 *</label>
+            <textarea id="editDescription" name="description" maxlength="500" rows="4" required></textarea>
+            <label for="editContactName">联系人</label>
+            <input id="editContactName" name="contactName" type="text" maxlength="30">
+            <label for="editContact">联系方式 *</label>
+            <input id="editContact" name="contact" type="text" maxlength="100" required>
+            <button class="primary-btn" type="submit">保存修改</button>
+            <button class="secondary-btn" type="button" id="cancelEditBtn">取消</button>
+        </form>
+    </div>
+</section>
+
 <section id="successPage" hidden>
     <div class="success-card">
         <div class="success-icon">✓</div>
@@ -100,6 +130,7 @@
         <h2>我的发布</h2>
         <span id="mineCount"></span>
     </div>
+    <p id="mineFeedback" role="status" hidden></p>
     <div id="mineList" class="item-list"></div>
 </section>
     </main>
@@ -118,6 +149,18 @@
             <small>我的</small>
         </button>
     </nav>
+</div>
+
+<div id="appModal" class="app-modal-backdrop" hidden>
+    <section class="app-modal" role="dialog" aria-modal="true"
+             aria-labelledby="appModalTitle" tabindex="-1">
+        <h2 id="appModalTitle">状态更新成功</h2>
+        <p id="appModalMessage"></p>
+        <div class="app-modal-actions">
+            <button id="appModalCancel" type="button" class="secondary-btn" hidden>取消</button>
+            <button id="appModalClose" type="button" class="primary-btn">确定</button>
+        </div>
+    </section>
 </div>
 
 <script src="js/data.js"></script>
