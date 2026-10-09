@@ -49,6 +49,39 @@ const searchBtn = document.getElementById("searchBtn");
 const pageTitle = document.getElementById("pageTitle");
 const backBtn = document.getElementById("backBtn");
 
+const appModal = document.getElementById("appModal");
+const appModalTitle = document.getElementById("appModalTitle");
+const appModalMessage = document.getElementById("appModalMessage");
+const appModalClose = document.getElementById("appModalClose");
+let modalReturnFocus = null;
+
+function showAppModal(message, title) {
+    if (!appModal || !appModalMessage || !appModalTitle) return;
+    modalReturnFocus = document.activeElement;
+    appModalTitle.textContent = title || "操作成功";
+    appModalMessage.textContent = message;
+    appModal.hidden = false;
+    if (appModalClose) appModalClose.focus();
+}
+
+function closeAppModal() {
+    if (!appModal || appModal.hidden) return;
+    appModal.hidden = true;
+    if (modalReturnFocus && modalReturnFocus.isConnected) modalReturnFocus.focus();
+    modalReturnFocus = null;
+}
+
+if (appModalClose) appModalClose.addEventListener("click", closeAppModal);
+if (appModal) {
+    appModal.addEventListener("click", function (event) {
+        if (event.target === appModal) closeAppModal();
+    });
+}
+document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") closeAppModal();
+});
+
+
 const pages = {
     edit: document.getElementById("editPage"),
     home: document.getElementById("homePage"),
@@ -469,7 +502,7 @@ function markFound(id) {
         saveItems(items);
         renderMine();
         renderItems();
-        alert("已更新该信息的状态。");
+        showAppModal("已更新为" + getCompletedStatus(item) + "。", "状态更新成功");
     } catch (error) {
         console.error("更新状态失败：", error);
         alert("更新失败，请重试。");
