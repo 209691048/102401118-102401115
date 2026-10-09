@@ -123,7 +123,82 @@ document.addEventListener("keydown", function (event) {
         }
     }
 });
+const pages = {
+    edit: document.getElementById("editPage"),
+    home: document.getElementById("homePage"),
+    detail: document.getElementById("detailPage"),
+    publish: document.getElementById("publishPage"),
+    success: document.getElementById("successPage"),
+    mine: document.getElementById("minePage")
+};
 
+function escapeHTML(value) {
+    return String(value ?? "").replace(/[&<>"']/g, function (char) {
+        const entities = {
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;"
+        };
+        return entities[char];
+    });
+}
+
+function readItems() {
+    try {
+        const items = getItems();
+        return Array.isArray(items) ? items : [];
+    } catch (error) {
+        console.error("读取物品信息失败：", error);
+        return [];
+    }
+}
+
+function switchPage(name, title) {
+    if (!pages[name]) {
+        console.error("页面不存在：", name);
+        return;
+    }
+
+    if (currentPage === "edit" && name !== "edit") editingItemId = null;
+    currentPage = name;
+
+    Object.entries(pages).forEach(function ([key, element]) {
+        if (element) {
+            element.hidden = key !== name;
+        }
+    });
+
+    if (pageTitle) {
+        pageTitle.textContent = title;
+    }
+
+    if (backBtn) {
+        backBtn.hidden = name === "home";
+    }
+
+    document.querySelectorAll(".nav-btn").forEach(function (btn) {
+        btn.classList.remove("active");
+    });
+
+    const navIds = {
+        home: "homeNavBtn",
+        publish: "publishNavBtn",
+        mine: "mineNavBtn"
+    };
+
+    if (navIds[name]) {
+        const navButton = document.getElementById(navIds[name]);
+        if (navButton) {
+            navButton.classList.add("active");
+        }
+    }
+
+    window.scrollTo(0, 0);
+}
+
+// 寻物完成后为“已找到”，招领完成后为“已归还”。
 function getCompletedStatus(item) {
     return item.type === "招领" ? "已归还" : "已找到";
 }
@@ -481,7 +556,13 @@ function deleteItem(id) {
     if (!requireOwnership(target)) return;
 
     showAppConfirm("确定要删除这条物品信息吗？删除后无法直接恢复。", "确认删除", function () {
-        const remainingItems = items.filter(function (item) {
+        const latestItems = readItems();
+        const latestTarget = latestItems.find(function (item) { return Number(item.id) === Number(id); });
+        if (!latestTarget || !isOwnItem(latestTarget)) {
+            showAppModal("信息不存在或不属于当前用户，无法删除。", "删除失败");
+            return;
+        }
+        const remainingItems = latestItems.filter(function (item) {
             return Number(item.id) !== Number(id);
         });
 
