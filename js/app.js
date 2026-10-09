@@ -1,3 +1,36 @@
+// 本地演示身份：同一浏览器共用身份，不代表服务器登录认证。
+function getCurrentPublisherId() {
+    try {
+        const key = "campusLostFoundPublisherId";
+        let id = localStorage.getItem(key);
+        if (!id) {
+            id = crypto.randomUUID();
+            localStorage.setItem(key, id);
+        }
+        return id;
+    } catch (error) {
+        console.error("无法保存发布者身份：", error);
+        return null;
+    }
+}
+
+function isOwnItem(item) {
+    const publisherId = getCurrentPublisherId();
+    return Boolean(publisherId && item && item.publisherId === publisherId);
+}
+
+function requireOwnership(item) {
+    if (!item) {
+        alert("未找到这条信息。");
+        return false;
+    }
+    if (!isOwnItem(item)) {
+        alert("只能修改自己发布的信息；旧版无归属信息仅供浏览。");
+        return false;
+    }
+    return true;
+}
+
 let currentType = "全部";
 let currentKeyword = "";
 let currentItemId = null;
@@ -247,7 +280,7 @@ function openDetail(id) {
 }
 
 function renderMine() {
-    const items = readItems();
+    const items = readItems().filter(isOwnItem);
     const mineList = document.getElementById("mineList");
     const mineCount = document.getElementById("mineCount");
 
@@ -334,10 +367,7 @@ function editItem(id) {
         return Number(entry.id) === Number(id);
     });
 
-    if (!item) {
-        alert("未找到这条信息。");
-        return;
-    }
+    if (!requireOwnership(item)) return;
 
     const title = prompt("请输入物品名称：", item.title);
     if (title === null) return;
@@ -348,11 +378,26 @@ function editItem(id) {
     const description = prompt("请输入详细描述：", item.description);
     if (description === null) return;
 
-    if (!title.trim() || !location.trim() || !description.trim()) {
-        alert("物品名称、地点和描述不能为空。");
+    const contactName = prompt("请输入联系人（可选）：", item.contactName || "");
+    if (contactName === null) return;
+
+    const contact = prompt("请输入联系方式（必填）：", item.contact || "");
+    if (contact === null) return;
+
+    if (!title.trim() || !location.trim() || !description.trim() || !contact.trim()) {
+        alert("物品名称、地点、描述和联系方式不能为空。");
         return;
     }
 
+    if (title.trim().length > 40 || location.trim().length > 80 ||
+        description.trim().length > 500 || contactName.trim().length > 30 ||
+        contact.trim().length > 100) {
+        alert("内容过长：名称最多40字、地点80字、描述500字、联系人30字、联系方式100字。");
+        return;
+    }
+
+    item.contactName = contactName.trim();
+    item.contact = contact.trim();
     item.title = title.trim();
     item.location = location.trim();
     item.description = description.trim();
@@ -374,10 +419,7 @@ function markFound(id) {
         return Number(entry.id) === Number(id);
     });
 
-    if (!item) {
-        alert("未找到这条信息。");
-        return;
-    }
+    if (!requireOwnership(item)) return;
 
     if (getItemStatus(item) === getCompletedStatus(item)) {
         alert("这条信息已经标记为" + getCompletedStatus(item) + "。");
@@ -398,11 +440,14 @@ function markFound(id) {
 }
 
 function deleteItem(id) {
+    const items = readItems();
+    const target = items.find(function (item) { return Number(item.id) === Number(id); });
+    if (!requireOwnership(target)) return;
+
     const confirmed = confirm("确定要删除这条物品信息吗？删除后无法直接恢复。");
 
     if (!confirmed) return;
 
-    const items = readItems();
     const remainingItems = items.filter(function (item) {
         return Number(item.id) !== Number(id);
     });
@@ -525,14 +570,20 @@ if (publishForm) {
         const contactName = document.getElementById("itemContactName").value.trim();
         const contact = document.getElementById("itemContact").value.trim();
 
-        if (!title || !location || !date || !description) {
+        if (!title || !location || !date || !description || !contact) {
             alert("请填写所有带 * 的必填项。");
             return;
         }
 
+        const publisherId = getCurrentPublisherId();
+        if (!publisherId) {
+            alert("无法保存发布者身份，请允许浏览器本地存储后重试。");
+            return;
+        }
         const items = readItems();
 
         items.unshift({
+            publisherId: publisherId,
             id: Date.now(),
             title: title,
             type: type,
