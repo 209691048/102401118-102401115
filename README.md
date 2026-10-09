@@ -46,7 +46,7 @@ python -m http.server 8000
 http://localhost:8000/tests/test.html
 ```
 
-点击“开始测试”即可运行 10 个浏览器测试。
+点击“开始测试”即可运行 11 个浏览器测试。
 
 ## Node 测试
 

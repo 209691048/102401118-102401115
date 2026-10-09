@@ -53,111 +53,77 @@ const appModal = document.getElementById("appModal");
 const appModalTitle = document.getElementById("appModalTitle");
 const appModalMessage = document.getElementById("appModalMessage");
 const appModalClose = document.getElementById("appModalClose");
+const appModalCancel = document.getElementById("appModalCancel");
 let modalReturnFocus = null;
+let modalConfirmAction = null;
 
-function showAppModal(message, title) {
-    if (!appModal || !appModalMessage || !appModalTitle) return;
+function openAppModal(message, title) {
+    if (!appModal || !appModalMessage || !appModalTitle) return false;
     modalReturnFocus = document.activeElement;
-    appModalTitle.textContent = title || "操作成功";
+    appModalTitle.textContent = title || "提示";
     appModalMessage.textContent = message;
     appModal.hidden = false;
-    if (appModalClose) appModalClose.focus();
+    if (appModalClose && typeof appModalClose.focus === "function") appModalClose.focus();
+    return true;
 }
 
-function closeAppModal() {
+function showAppModal(message, title) {
+    modalConfirmAction = null;
+    if (appModalCancel) appModalCancel.hidden = true;
+    if (appModalClose) appModalClose.textContent = "确定";
+    openAppModal(message, title);
+}
+
+function showAppConfirm(message, title, onConfirm) {
+    if (!appModal || !appModalCancel || !appModalClose) return;
+    modalConfirmAction = onConfirm;
+    appModalCancel.hidden = false;
+    appModalClose.textContent = "删除";
+    openAppModal(message, title || "请确认");
+}
+
+function closeAppModal(confirmed) {
     if (!appModal || appModal.hidden) return;
     appModal.hidden = true;
-    if (modalReturnFocus && modalReturnFocus.isConnected) modalReturnFocus.focus();
+    const returnFocus = modalReturnFocus;
     modalReturnFocus = null;
+    const action = modalConfirmAction;
+    modalConfirmAction = null;
+    if (confirmed && action) action();
+    if (returnFocus && returnFocus.isConnected && appModal.hidden) returnFocus.focus();
 }
 
-if (appModalClose) appModalClose.addEventListener("click", closeAppModal);
+if (appModalClose) appModalClose.addEventListener("click", function () {
+    closeAppModal(true);
+});
+if (appModalCancel) appModalCancel.addEventListener("click", function () {
+    closeAppModal(false);
+});
 if (appModal) {
     appModal.addEventListener("click", function (event) {
-        if (event.target === appModal) closeAppModal();
+        if (event.target === appModal) closeAppModal(false);
     });
 }
 document.addEventListener("keydown", function (event) {
-    if (event.key === "Escape") closeAppModal();
-});
-
-
-const pages = {
-    edit: document.getElementById("editPage"),
-    home: document.getElementById("homePage"),
-    detail: document.getElementById("detailPage"),
-    publish: document.getElementById("publishPage"),
-    success: document.getElementById("successPage"),
-    mine: document.getElementById("minePage")
-};
-
-function escapeHTML(value) {
-    return String(value ?? "").replace(/[&<>"']/g, function (char) {
-        const entities = {
-            "&": "&amp;",
-            "<": "&lt;",
-            ">": "&gt;",
-            '"': "&quot;",
-            "'": "&#39;"
-        };
-        return entities[char];
-    });
-}
-
-function readItems() {
-    try {
-        const items = getItems();
-        return Array.isArray(items) ? items : [];
-    } catch (error) {
-        console.error("读取物品信息失败：", error);
-        return [];
-    }
-}
-
-function switchPage(name, title) {
-    if (!pages[name]) {
-        console.error("页面不存在：", name);
+    if (!appModal || appModal.hidden) return;
+    if (event.key === "Escape") {
+        closeAppModal(false);
         return;
     }
-
-    if (currentPage === "edit" && name !== "edit") editingItemId = null;
-    currentPage = name;
-
-    Object.entries(pages).forEach(function ([key, element]) {
-        if (element) {
-            element.hidden = key !== name;
-        }
-    });
-
-    if (pageTitle) {
-        pageTitle.textContent = title;
-    }
-
-    if (backBtn) {
-        backBtn.hidden = name === "home";
-    }
-
-    document.querySelectorAll(".nav-btn").forEach(function (btn) {
-        btn.classList.remove("active");
-    });
-
-    const navIds = {
-        home: "homeNavBtn",
-        publish: "publishNavBtn",
-        mine: "mineNavBtn"
-    };
-
-    if (navIds[name]) {
-        const navButton = document.getElementById(navIds[name]);
-        if (navButton) {
-            navButton.classList.add("active");
+    if (event.key === "Tab") {
+        const buttons = [appModalClose];
+        if (appModalCancel && !appModalCancel.hidden) buttons.unshift(appModalCancel);
+        const first = buttons[0], last = buttons[buttons.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
         }
     }
+});
 
-    window.scrollTo(0, 0);
-}
-
-// 寻物完成后为“已找到”，招领完成后为“已归还”。
 function getCompletedStatus(item) {
     return item.type === "招领" ? "已归还" : "已找到";
 }
@@ -514,23 +480,21 @@ function deleteItem(id) {
     const target = items.find(function (item) { return Number(item.id) === Number(id); });
     if (!requireOwnership(target)) return;
 
-    const confirmed = confirm("确定要删除这条物品信息吗？删除后无法直接恢复。");
+    showAppConfirm("确定要删除这条物品信息吗？删除后无法直接恢复。", "确认删除", function () {
+        const remainingItems = items.filter(function (item) {
+            return Number(item.id) !== Number(id);
+        });
 
-    if (!confirmed) return;
-
-    const remainingItems = items.filter(function (item) {
-        return Number(item.id) !== Number(id);
+        try {
+            saveItems(remainingItems);
+            renderMine();
+            renderItems();
+            showAppModal("信息已删除。", "删除成功");
+        } catch (error) {
+            console.error("删除信息失败：", error);
+            showAppModal("删除失败，请重试。", "删除失败");
+        }
     });
-
-    try {
-        saveItems(remainingItems);
-        renderMine();
-        renderItems();
-        alert("信息已删除。");
-    } catch (error) {
-        console.error("删除信息失败：", error);
-        alert("删除失败，请重试。");
-    }
 }
 
 function goHome() {

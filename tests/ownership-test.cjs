@@ -28,7 +28,7 @@ test('编辑空白联系方式不保存任何字段',()=>{editValues(['新名称
 test('取消编辑不保存',()=>{ctx.editItem(1);element('editTitle').value='未保存';ctx.cancelEdit();assert.equal(writes,0)});
 test('编辑超长联系方式不保存',()=>{editValues(['名称','地点','描述','联系人','x'.repeat(101)]);assert.equal(writes,0)});
 for(const [type,status] of [['寻物','已找到'],['招领','已归还']])test(type+'状态更新及三处展示',()=>{items[0].type=type;ctx.markFound(1);assert.equal(items[0].status,status);ctx.openDetail(1);for(const id of ['itemList','mineList','detailContent'])assert(element(id).innerHTML.includes(status));ctx.markFound(1);assert.equal(writes,1)});
-test('本人可以删除',()=>{ctx.deleteItem(1);assert.equal(items.length,2);assert.equal(writes,1)});
+test('本人可以删除',()=>{ctx.deleteItem(1);element('appModalClose').listeners.click();assert.equal(items.length,2);assert.equal(writes,1)});
 test('旧招领完成状态兼容',()=>{items[0].type='招领';items[0].status='已找到';assert.equal(ctx.getItemStatus(items[0]),'已归还')});
 test('首次身份生成且持久化',()=>{storage.clear();assert.equal(ctx.getCurrentPublisherId(),'generated-owner');assert.equal(storage.get('campusLostFoundPublisherId'),'generated-owner')});
 test('存储不可用时拒绝发布及维护',()=>{blocked=true;publish('a@example.com');ctx.markFound(1);assert.equal(writes,0)});

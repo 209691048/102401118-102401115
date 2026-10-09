@@ -512,3 +512,23 @@ button {
 .app-modal .primary-btn {
     margin-top: 22px;
 }
+
+
+.app-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 22px;
+}
+
+.app-modal-actions .primary-btn,
+.app-modal-actions .secondary-btn {
+    width: auto;
+    min-width: 84px;
+    margin: 0;
+    padding: 10px 16px;
+}
+
+.app-modal-actions .secondary-btn[hidden] {
+    display: none;
+}
