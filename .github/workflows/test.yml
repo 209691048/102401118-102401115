@@ -31,3 +31,4 @@ jobs:
 
       - name: Run ownership and edit tests
         run: node tests/ownership-test.cjs
+        # trigger pull request check
