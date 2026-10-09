@@ -5,7 +5,7 @@ const path = require('node:path');
 let items, writes, prompts, confirms, alerts, storage, blocked;
 const elements = new Map();
 function element(id) {
- if (!elements.has(id)) elements.set(id, {value:'',innerHTML:'',hidden:false,listeners:{},addEventListener(n,f){this.listeners[n]=f},querySelectorAll(){return []},classList:{add(){},remove(){}},reset(){}});
+ if (!elements.has(id)) elements.set(id, {value:'',innerHTML:'',hidden:false,listeners:{},addEventListener(n,f){this.listeners[n]=f},querySelectorAll(){return []},classList:{add(){},remove(){}},reset(){},focus(){}});
  return elements.get(id);
 }
 const ctx = vm.createContext({console:{error(){}},setTimeout,clearTimeout,crypto:{randomUUID(){return 'generated-owner'}},localStorage:{getItem(k){if(blocked)throw Error('blocked');return storage.get(k)||null},setItem(k,v){if(blocked)throw Error('blocked');storage.set(k,v)}},alert(m){alerts.push(m)},prompt(){return prompts.shift() ?? null},confirm(){confirms++;return true},window:{scrollTo(){},crypto:{randomUUID(){return 'generated-owner'}}},document:{readyState:'loading',getElementById:element,querySelectorAll(){return []},addEventListener(){}},getItems(){return structuredClone(items)},saveItems(v){items=structuredClone(v);writes++}});
