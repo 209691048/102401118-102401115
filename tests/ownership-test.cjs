@@ -27,10 +27,16 @@ test('编辑联系人与联系方式且保留归属及ID',()=>{editValues(['新�
 test('编辑空白联系方式不保存任何字段',()=>{editValues(['新名称','地点','描述','联系人','  ']);assert.equal(writes,0);assert.equal(items[0].title,'本人')});
 test('取消编辑不保存',()=>{ctx.editItem(1);element('editTitle').value='未保存';ctx.cancelEdit();assert.equal(writes,0)});
 test('编辑超长联系方式不保存',()=>{editValues(['名称','地点','描述','联系人','x'.repeat(101)]);assert.equal(writes,0)});
-for(const [type,status] of [['寻物','已找到'],['招领','已归还']])test(type+'状态更新及三处展示',()=>{items[0].type=type;ctx.markFound(1);assert.equal(items[0].status,status);ctx.openDetail(1);for(const id of ['itemList','mineList','detailContent'])assert(element(id).innerHTML.includes(status));ctx.markFound(1);assert.equal(writes,1)});
-test('三分钟内本人可以撤销已归还状态',()=>{items[0].type='招领';items[0].status='已归还';items[0].statusUpdatedAt=Date.now();assert.equal(ctx.canUndoReturned(items[0]),true);ctx.undoReturned(1);assert.equal(items[0].status,'待处理');assert.equal('statusUpdatedAt' in items[0],false);assert.equal(writes,1)});
-test('超过三分钟后不能撤销已归还状态',()=>{items[0].type='招领';items[0].status='已归还';items[0].statusUpdatedAt=Date.now()-180001;assert.equal(ctx.canUndoReturned(items[0]),false);ctx.undoReturned(1);assert.equal(items[0].status,'已归还');assert.equal(writes,0)});
-for(const id of [2,3,999])test('撤销拒绝非本人/旧数据/不存在 '+id,()=>{const target=items.find(x=>x.id===id);if(target){target.status='已归还';target.type='招领';target.statusUpdatedAt=Date.now()}ctx.undoReturned(id);assert.equal(writes,0);if(target)assert.equal(target.status,'已归还')});
+for(const [type,status] of [['寻物','已找到'],['招领','已归还']])test(type+'状态更新及三处展示',()=>{items[0].type=type;ctx.markFound(1);assert.equal(items[0].status,status);assert.equal(typeof items[0].statusUpdatedAt,'number');ctx.openDetail(1);for(const id of ['itemList','mineList','detailContent'])assert(element(id).innerHTML.includes(status));ctx.markFound(1);assert.equal(writes,1)});
+test('三分钟内本人可以撤销已找到状态',()=>{items[0].type='寻物';ctx.markFound(1);const markedAt=items[0].statusUpdatedAt;assert.equal(items[0].status,'已找到');assert.equal(ctx.canUndoCompletedStatus(items[0]),true);ctx.undoCompletedStatus(1);assert.equal(items[0].status,'待处理');assert.equal('statusUpdatedAt' in items[0],false);assert.equal(writes,2);assert(markedAt>0)});
+test('超过三分钟后不能撤销已找到状态',()=>{items[0].type='寻物';items[0].status='已找到';items[0].statusUpdatedAt=Date.now()-180001;ctx.undoCompletedStatus(1);assert.equal(items[0].status,'已找到');assert.equal(writes,0)});
+test('无标记时间的旧已找到记录不能撤销',()=>{items[0].type='寻物';items[0].status='已找到';ctx.undoCompletedStatus(1);assert.equal(items[0].status,'已找到');assert.equal(writes,0)});
+test('重复标记已找到不重置撤销时间',()=>{items[0].type='寻物';ctx.markFound(1);const markedAt=items[0].statusUpdatedAt;ctx.markFound(1);assert.equal(items[0].status,'已找到');assert.equal(items[0].statusUpdatedAt,markedAt);assert.equal(writes,1)});
+test('三分钟边界对已找到和已归还一致',()=>{for(const [type,status] of [['寻物','已找到'],['招领','已归还']]){const item={type,status,statusUpdatedAt:100000};assert.equal(ctx.canUndoCompletedStatus(item,280000),true);assert.equal(ctx.canUndoCompletedStatus(item,280001),false);assert.equal(ctx.canUndoCompletedStatus(item,99999),false)}});
+test('他人发布的已找到信息不能撤销',()=>{items[1].type='寻物';items[1].status='已找到';items[1].statusUpdatedAt=Date.now();ctx.undoCompletedStatus(2);assert.equal(items[1].status,'已找到');assert.equal(writes,0)});
+test('三分钟内本人可以撤销已归还状态',()=>{items[0].type='招领';items[0].status='已归还';items[0].statusUpdatedAt=Date.now();assert.equal(ctx.canUndoCompletedStatus(items[0]),true);ctx.undoCompletedStatus(1);assert.equal(items[0].status,'待处理');assert.equal('statusUpdatedAt' in items[0],false);assert.equal(writes,1)});
+test('超过三分钟后不能撤销已归还状态',()=>{items[0].type='招领';items[0].status='已归还';items[0].statusUpdatedAt=Date.now()-180001;assert.equal(ctx.canUndoCompletedStatus(items[0]),false);ctx.undoCompletedStatus(1);assert.equal(items[0].status,'已归还');assert.equal(writes,0)});
+for(const id of [2,3,999])test('撤销拒绝非本人/旧数据/不存在 '+id,()=>{const target=items.find(x=>x.id===id);if(target){target.status='已归还';target.type='招领';target.statusUpdatedAt=Date.now()}ctx.undoCompletedStatus(id);assert.equal(writes,0);if(target)assert.equal(target.status,'已归还')});
 test('本人可以删除',()=>{ctx.deleteItem(1);element('appModalClose').listeners.click();assert.equal(items.length,2);assert.equal(writes,1)});
 test('旧招领完成状态兼容',()=>{items[0].type='招领';items[0].status='已找到';assert.equal(ctx.getItemStatus(items[0]),'已归还')});
 test('首次身份生成且持久化',()=>{storage.clear();assert.equal(ctx.getCurrentPublisherId(),'generated-owner');assert.equal(storage.get('campusLostFoundPublisherId'),'generated-owner')});
@@ -58,15 +64,17 @@ test('保存保留完成状态和类型',()=>{items[0].status='已找到';editVa
 for (const field of ['itemTitle','itemLocation','itemDate','itemDescription','itemContact']) {
  test('发布拒绝空/空白必填字段 '+field,()=>{publish('user@example.com',{[field]:field==='itemDate'?'':'   '});assert.equal(items.length,3);assert.equal(writes,0)});
 }
-test('撤销时间边界含三分钟整点',()=>{const item={type:'招领',status:'已归还',statusUpdatedAt:100000};assert.equal(ctx.canUndoReturned(item,280000),true);assert.equal(ctx.canUndoReturned(item,280001),false);assert.equal(ctx.canUndoReturned(item,99999),false)});
+test('撤销时间边界含三分钟整点',()=>{const item={type:'招领',status:'已归还',statusUpdatedAt:100000};assert.equal(ctx.canUndoCompletedStatus(item,280000),true);assert.equal(ctx.canUndoCompletedStatus(item,280001),false);assert.equal(ctx.canUndoCompletedStatus(item,99999),false)});
 for (const item of [
- {type:'寻物',status:'已找到',statusUpdatedAt:100000},
+ {type:'寻物',status:'待处理',statusUpdatedAt:100000},
+ {type:'寻物',status:'已找到'},
+ {type:'寻物',status:'已找到',statusUpdatedAt:'invalid'},
  {type:'招领',status:'待处理',statusUpdatedAt:100000},
  {type:'招领',status:'已归还'},
  {type:'招领',status:'已归还',statusUpdatedAt:'invalid'},
  {type:'招领',status:'已找到'}
-]) test('仅有效的已归还记录可撤销 '+JSON.stringify(item),()=>{assert.equal(ctx.canUndoReturned(item,100001),false)});
+]) test('缺少有效完成状态或时间时不可撤销 '+JSON.stringify(item),()=>{assert.equal(ctx.canUndoCompletedStatus(item,100001),false)});
 test('重复标记已归还不重置撤销时间',()=>{items[0].type='招领';ctx.markFound(1);const markedAt=items[0].statusUpdatedAt;ctx.markFound(1);assert.equal(items[0].status,'已归还');assert.equal(items[0].statusUpdatedAt,markedAt);assert.equal(writes,1)});
-test('撤销只改状态并保留物品资料',()=>{items[0].type='招领';items[0].status='已归还';items[0].statusUpdatedAt=Date.now();const before={...items[0]};ctx.undoReturned(1);for(const key of ['id','publisherId','title','date','location','description','contact'])assert.equal(items[0][key],before[key]);assert.equal(items[0].status,'待处理');assert.equal('statusUpdatedAt' in items[0],false)});
-test('撤销保存失败时原状态不变',()=>{items[0].type='招领';items[0].status='已归还';items[0].statusUpdatedAt=Date.now();failWrites=true;ctx.undoReturned(1);assert.equal(items[0].status,'已归还');assert.equal(writes,0)});
+test('撤销只改状态并保留物品资料',()=>{items[0].type='招领';items[0].status='已归还';items[0].statusUpdatedAt=Date.now();const before={...items[0]};ctx.undoCompletedStatus(1);for(const key of ['id','publisherId','title','date','location','description','contact'])assert.equal(items[0][key],before[key]);assert.equal(items[0].status,'待处理');assert.equal('statusUpdatedAt' in items[0],false)});
+test('撤销保存失败时原状态不变',()=>{items[0].type='招领';items[0].status='已归还';items[0].statusUpdatedAt=Date.now();failWrites=true;ctx.undoCompletedStatus(1);assert.equal(items[0].status,'已归还');assert.equal(writes,0)});
 console.log(passed+' ownership and regression tests passed. Mock DOM logic tests; browser UI tests run separately.');

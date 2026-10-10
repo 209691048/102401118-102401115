@@ -32,13 +32,13 @@
    assert(returned.status==="已归还" && typeof returned.statusUpdatedAt==="number","未记录归还时间");
    const homeCard=d.querySelector('#itemList .item-card[data-id="2"]');
    assert(homeCard && homeCard.classList.contains("item-returned"),"首页已归还卡片未淡化");
-   const undo=d.querySelector('[data-action="undo-return"][data-id="2"]');
+   const undo=d.querySelector('[data-action="undo-completion"][data-id="2"]');
    assert(undo,"未显示撤销按钮");
    assert(undo.closest(".item-card").classList.contains("item-returned"),"已归还卡片未淡化");
    undo.click();
    const restored=saved().find(x=>x.id===2);
    assert(restored.status==="待处理" && !("statusUpdatedAt" in restored),"撤销后状态错误");
-   assert(!d.querySelector('[data-action="undo-return"][data-id="2"]'),"撤销后按钮仍显示");
+   assert(!d.querySelector('[data-action="undo-completion"][data-id="2"]'),"撤销后按钮仍显示");
    assert(!d.querySelector('#itemList .item-card[data-id="2"]').classList.contains("item-returned"),"撤销后首页卡片仍淡化");
   });
   await go("测试13：超过3分钟后隐藏撤销入口",async()=>{
@@ -47,7 +47,7 @@
    expired[1].statusUpdatedAt=Date.now()-180001;
    const d=(await load(expired)).document;
    d.getElementById("mineNavBtn").click();
-   assert(!d.querySelector('[data-action="undo-return"][data-id="2"]'),"过期后仍显示撤销按钮");
+   assert(!d.querySelector('[data-action="undo-completion"][data-id="2"]'),"过期后仍显示撤销按钮");
   });
 
   await go("测试14：忽略大小写并搜索名称描述地点",async()=>{
@@ -72,10 +72,10 @@
   await go("测试17：点击过期撤销入口会重新校验",async()=>{
    const data=clone(base);data[1].status="已归还";data[1].statusUpdatedAt=Date.now();
    const d=(await load(data)).document;d.getElementById("mineNavBtn").click();
-   const staleButton=d.querySelector('[data-action="undo-return"][data-id="2"]');assert(staleButton,"未生成有效撤销入口");
+   const staleButton=d.querySelector('[data-action="undo-completion"][data-id="2"]');assert(staleButton,"未生成有效撤销入口");
    const latest=saved();latest.find(x=>x.id===2).statusUpdatedAt=Date.now()-180001;localStorage.setItem(KEY,JSON.stringify(latest));
    staleButton.click();assert(saved().find(x=>x.id===2).status==="已归还","过期操作改变了状态");
-   assert(!d.querySelector('[data-action="undo-return"][data-id="2"]'),"过期后仍显示撤销入口");
+   assert(!d.querySelector('[data-action="undo-completion"][data-id="2"]'),"过期后仍显示撤销入口");
    assert(d.getElementById("appModalTitle").textContent==="无法撤销","缺少过期提示弹窗");
   });
   await go("测试18：他人、旧数据与无归属记录不提供撤销",async()=>{
@@ -84,7 +84,7 @@
    data[3].status="已归还";delete data[3].statusUpdatedAt;
    const d=(await load(data)).document;d.getElementById("mineNavBtn").click();
    assert(d.querySelectorAll("#mineList .item-card").length===1,"我的发布归属筛选错误");
-   assert(!d.querySelector('[data-action="undo-return"]'),"无权或旧数据仍有撤销入口");
+   assert(!d.querySelector('[data-action="undo-completion"]'),"无权或旧数据仍有撤销入口");
   });
   await go("测试19：标题按文本显示以防注入HTML",async()=>{
    const data=clone(base);data[0].title='<img src=x onerror="alert(1)">';
@@ -114,6 +114,35 @@
    assert(d.getElementById("appModalMessage").textContent.includes("暂未填写联系方式"),"缺少联系方式提示错误");
    assert(nativeAlertCalls===0,"缺少联系方式时仍调用浏览器原生提示");
    d.getElementById("appModalClose").click();assert(modal.hidden,"弹窗未关闭");
+  });
+  await go("测试22：已找到状态3分钟内可撤销",async()=>{
+   const d=(await load(base)).document;
+   d.getElementById("mineNavBtn").click();
+   d.querySelector('[data-action="found"][data-id="1"]').click();
+   const found=saved().find(x=>x.id===1);
+   assert(found.status==="已找到" && typeof found.statusUpdatedAt==="number","已找到状态未记录时间");
+   let undo=d.querySelector('[data-action="undo-completion"][data-id="1"]');
+   assert(undo && undo.textContent.includes("已找到"),"未显示撤销已找到入口");
+   undo.click();
+   const restored=saved().find(x=>x.id===1);
+   assert(restored.status==="待处理" && !("statusUpdatedAt" in restored),"撤销后状态未恢复");
+   assert(!d.querySelector('[data-action="undo-completion"][data-id="1"]'),"撤销后入口仍显示");
+   assert(!d.querySelector('#itemList .item-card[data-id="1"]').classList.contains("item-returned"),"寻物卡片被错误淡化");
+  });
+  await go("测试23：已找到超过3分钟后隐藏撤销入口",async()=>{
+   const expired=clone(base);
+   expired[0].status="已找到";
+   expired[0].statusUpdatedAt=Date.now()-180001;
+   const d=(await load(expired)).document;
+   d.getElementById("mineNavBtn").click();
+   assert(!d.querySelector('[data-action="undo-completion"][data-id="1"]'),"过期后仍显示撤销已找到入口");
+  });
+  await go("测试24：旧的已找到状态没有撤销时间时不提供撤销",async()=>{
+   const legacy=clone(base);
+   legacy[0].status="已找到";
+   const d=(await load(legacy)).document;
+   d.getElementById("mineNavBtn").click();
+   assert(!d.querySelector('[data-action="undo-completion"][data-id="1"]'),"旧数据错误显示撤销入口");
   });
  }finally{oldData===null?localStorage.removeItem(KEY):localStorage.setItem(KEY,oldData);oldOwner===null?localStorage.removeItem(OWNER):localStorage.setItem(OWNER,oldOwner);summary.textContent="测试结束：通过 "+p+" 项，失败 "+f+" 项。";run.disabled=false}}
  run.addEventListener("click",all);
