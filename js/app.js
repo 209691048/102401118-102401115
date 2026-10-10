@@ -384,9 +384,9 @@ function openDetail(id) {
 
     document.getElementById("contactBtn").addEventListener("click", function () {
         if (item.contact) {
-            alert("请通过以下方式联系发布者：\n" + item.contact);
+            showAppModal("请通过以下方式联系发布者：\n" + item.contact, "联系发布者");
         } else {
-            alert("发布者暂未填写联系方式。");
+            showAppModal("发布者暂未填写联系方式。", "联系发布者");
         }
     });
 

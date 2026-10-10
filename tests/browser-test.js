@@ -92,6 +92,29 @@
    assert(title && title.textContent===data[0].title,"特殊字符显示错误");
    assert(!d.querySelector('#itemList .item-card[data-id="1"] img'),"标题被解析为HTML");
   });
+  await go("测试20：联系发布者显示独立弹窗",async()=>{
+   const d=(await load(base)).document,w=d.defaultView;let nativeAlertCalls=0;w.alert=()=>{nativeAlertCalls++};
+   d.querySelector('#itemList .item-card[data-id="3"]').click();
+   d.getElementById("contactBtn").click();
+   const modal=d.getElementById("appModal");
+   assert(!modal.hidden,"联系弹窗未显示");
+   assert(d.getElementById("appModalTitle").textContent==="联系发布者","弹窗标题错误");
+   assert(d.getElementById("appModalMessage").textContent.includes("other@example.com"),"联系方式未显示");
+   assert(nativeAlertCalls===0,"仍调用浏览器原生提示");
+   d.getElementById("appModalClose").click();assert(modal.hidden,"弹窗未关闭");
+  });
+  await go("测试21：缺少联系方式时仍使用独立弹窗",async()=>{
+   const data=clone(base);delete data[2].contact;
+   const d=(await load(data)).document,w=d.defaultView;let nativeAlertCalls=0;w.alert=()=>{nativeAlertCalls++};
+   d.querySelector('#itemList .item-card[data-id="3"]').click();
+   d.getElementById("contactBtn").click();
+   const modal=d.getElementById("appModal");
+   assert(!modal.hidden,"缺少联系方式弹窗未显示");
+   assert(d.getElementById("appModalTitle").textContent==="联系发布者","缺少联系方式时弹窗标题错误");
+   assert(d.getElementById("appModalMessage").textContent.includes("暂未填写联系方式"),"缺少联系方式提示错误");
+   assert(nativeAlertCalls===0,"缺少联系方式时仍调用浏览器原生提示");
+   d.getElementById("appModalClose").click();assert(modal.hidden,"弹窗未关闭");
+  });
  }finally{oldData===null?localStorage.removeItem(KEY):localStorage.setItem(KEY,oldData);oldOwner===null?localStorage.removeItem(OWNER):localStorage.setItem(OWNER,oldOwner);summary.textContent="测试结束：通过 "+p+" 项，失败 "+f+" 项。";run.disabled=false}}
  run.addEventListener("click",all);
 })();
