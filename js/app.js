@@ -37,6 +37,8 @@ function requireOwnership(item) {
 
 let editingItemId = null;
 let mineFeedbackTimer = null;
+let completionUndoTimer = null;
+const COMPLETION_UNDO_WINDOW_MS = 3 * 60 * 1000;
 let currentType = "全部";
 let currentKeyword = "";
 let currentItemId = null;
@@ -145,6 +147,39 @@ function escapeHTML(value) {
     });
 }
 
+async function copyTextToClipboard(value) {
+    const text = String(value || "").trim();
+    if (!text) throw new Error("没有可复制的联系方式。");
+
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        try {
+            await navigator.clipboard.writeText(text);
+            return;
+        } catch (error) {
+            // 直接打开本地 HTML 或剪贴板权限受限时，尝试传统复制方式。
+        }
+    }
+
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.setAttribute("aria-hidden", "true");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    textarea.style.left = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    let copied = false;
+    try {
+        copied = typeof document.execCommand === "function" && document.execCommand("copy");
+    } finally {
+        textarea.remove();
+    }
+    if (!copied) throw new Error("浏览器未能访问剪贴板。");
+}
+
 function readItems() {
     try {
         const items = getItems();
@@ -195,6 +230,8 @@ function switchPage(name, title) {
         }
     }
 
+    if (name === "mine") scheduleMineUndoExpiry(readItems());
+    else if (completionUndoTimer) { clearTimeout(completionUndoTimer); completionUndoTimer = null; }
     window.scrollTo(0, 0);
 }
 
@@ -209,6 +246,56 @@ function getItemStatus(item) {
         return getCompletedStatus(item);
     }
     return item.status || "待处理";
+}
+
+
+function stampLegacyCompletionTimes(items, now) {
+    if (!Array.isArray(items)) return false;
+    const timestamp = typeof now === "number" ? now : Date.now();
+    let changed = false;
+
+    items.forEach(function (item) {
+        if (!item || (item.type !== "寻物" && item.type !== "招领") ||
+            getItemStatus(item) !== getCompletedStatus(item)) return;
+
+        const markedAt = item.statusUpdatedAt;
+        if (markedAt == null || !Number.isFinite(Number(markedAt))) {
+            item.statusUpdatedAt = timestamp;
+            changed = true;
+        }
+    });
+
+    return changed;
+}
+
+function canUndoCompletedStatus(item, now) {
+    if (!item || (item.type !== "寻物" && item.type !== "招领") ||
+        getItemStatus(item) !== getCompletedStatus(item)) return false;
+    const markedAt = Number(item.statusUpdatedAt);
+    const currentTime = typeof now === "number" ? now : Date.now();
+    return Number.isFinite(markedAt) && markedAt <= currentTime &&
+        currentTime - markedAt <= COMPLETION_UNDO_WINDOW_MS;
+}
+
+function scheduleMineUndoExpiry(items) {
+    if (completionUndoTimer) {
+        clearTimeout(completionUndoTimer);
+        completionUndoTimer = null;
+    }
+    if (currentPage !== "mine") return;
+
+    const now = Date.now();
+    const nextExpiry = items
+        .filter(function (item) { return isOwnItem(item) && canUndoCompletedStatus(item, now); })
+        .map(function (item) { return Number(item.statusUpdatedAt) + COMPLETION_UNDO_WINDOW_MS; })
+        .sort(function (a, b) { return a - b; })[0];
+    if (!nextExpiry) return;
+
+    completionUndoTimer = setTimeout(function () {
+        completionUndoTimer = null;
+        if (currentPage === "mine") renderMine();
+    }, Math.max(0, nextExpiry - Date.now() + 20));
+    if (completionUndoTimer && typeof completionUndoTimer.unref === "function") completionUndoTimer.unref();
 }
 
 function renderItems() {
@@ -248,7 +335,7 @@ function renderItems() {
 
     itemList.innerHTML = filteredItems.map(function (item) {
         return `
-            <article class="item-card"
+            <article class="item-card${getItemStatus(item) === getCompletedStatus(item) ? " item-completed" : ""}"
                 data-id="${Number(item.id)}"
                 tabindex="0"
                 role="button">
@@ -295,6 +382,7 @@ function openDetail(id) {
     }
 
     currentItemId = Number(id);
+    const contact = String(item.contact || "").trim();
 
     const detailContent = document.getElementById("detailContent");
 
@@ -332,12 +420,16 @@ function openDetail(id) {
             <div class="contact-card">
                 <h3>发布者联系方式</h3>
                 <p>联系人：${escapeHTML(item.contactName || "校园用户")}</p>
-                <p>联系方式：${escapeHTML(item.contact || "暂未填写联系方式")}</p>
+                <p>联系方式：${escapeHTML(contact || "暂未填写联系方式")}</p>
                 <p>请联系时说明物品名称，并核实物品特征。</p>
             </div>
 
             <button class="primary-btn" id="contactBtn" type="button">
                 联系发布者
+            </button>
+
+            <button class="secondary-btn" id="copyContactBtn" type="button" aria-label="复制联系方式">
+                复制联系方式
             </button>
 
             <button class="secondary-btn" id="detailBackBtn" type="button">
@@ -349,10 +441,24 @@ function openDetail(id) {
     switchPage("detail", "信息详情");
 
     document.getElementById("contactBtn").addEventListener("click", function () {
-        if (item.contact) {
-            alert("请通过以下方式联系发布者：\n" + item.contact);
+        if (contact) {
+            showAppModal("请通过以下方式联系发布者：\n" + contact, "联系发布者");
         } else {
-            alert("发布者暂未填写联系方式。");
+            showAppModal("发布者暂未填写联系方式。", "联系发布者");
+        }
+    });
+
+    document.getElementById("copyContactBtn").addEventListener("click", async function () {
+        if (!contact) {
+            showAppModal("发布者暂未填写联系方式。", "复制失败");
+            return;
+        }
+
+        try {
+            await copyTextToClipboard(contact);
+            showAppModal("联系方式已复制，可以粘贴使用。", "复制成功");
+        } catch (error) {
+            showAppModal("无法自动复制，请手动复制以下联系方式：\n" + contact, "复制失败");
         }
     });
 
@@ -387,13 +493,13 @@ function renderMine() {
         document.getElementById("minePublishBtn").addEventListener("click", function () {
             openPublishPage();
         });
-
+        scheduleMineUndoExpiry(items);
         return;
     }
 
     mineList.innerHTML = items.map(function (item) {
         return `
-            <article class="item-card">
+            <article class="item-card${getItemStatus(item) === getCompletedStatus(item) ? " item-completed" : ""}">
                 <div class="item-image">${escapeHTML(item.icon || "📦")}</div>
 
                 <div class="item-info">
@@ -416,6 +522,7 @@ function renderMine() {
                         <button type="button" data-action="found" data-id="${Number(item.id)}">
                             ${getItemStatus(item) === getCompletedStatus(item) ? escapeHTML(getItemStatus(item)) : "标记" + escapeHTML(getCompletedStatus(item))}
                         </button>
+                        ${canUndoCompletedStatus(item) ? '<button type="button" data-action="undo-completion" data-id="' + Number(item.id) + '" title="标记完成后的3分钟内可撤销">撤销' + escapeHTML(getItemStatus(item)) + '</button>' : ""}
                         <button type="button" data-action="delete" data-id="${Number(item.id)}">
                             删除
                         </button>
@@ -436,11 +543,14 @@ function renderMine() {
                 editItem(id);
             } else if (action === "found") {
                 markFound(id);
+            } else if (action === "undo-completion") {
+                undoCompletedStatus(id);
             } else if (action === "delete") {
                 deleteItem(id);
             }
         });
     });
+    scheduleMineUndoExpiry(items);
 }
 
 function editItem(id) {
@@ -538,15 +648,46 @@ function markFound(id) {
     }
 
     item.status = getCompletedStatus(item);
+    item.statusUpdatedAt = Date.now();
 
     try {
         saveItems(items);
         renderMine();
         renderItems();
-        showAppModal("已更新为" + getCompletedStatus(item) + "。", "状态更新成功");
+        showAppModal(
+            "已更新为" + getCompletedStatus(item) + "。如需撤销，可在3分钟内到“我的发布”操作。",
+            "状态更新成功"
+        );
     } catch (error) {
         console.error("更新状态失败：", error);
         alert("更新失败，请重试。");
+    }
+}
+
+function undoCompletedStatus(id) {
+    const items = readItems();
+    const item = items.find(function (entry) {
+        return Number(entry.id) === Number(id);
+    });
+
+    if (!requireOwnership(item)) return;
+    if (!canUndoCompletedStatus(item)) {
+        showAppModal("只能在标记为“已找到”或“已归还”后的3分钟内撤销。", "无法撤销");
+        renderMine();
+        return;
+    }
+
+    item.status = "待处理";
+    delete item.statusUpdatedAt;
+
+    try {
+        saveItems(items);
+        renderMine();
+        renderItems();
+        showAppModal("状态已恢复为待处理。", "撤销成功");
+    } catch (error) {
+        console.error("撤销完成状态失败：", error);
+        showAppModal("撤销失败，请重试。", "操作失败");
     }
 }
 
@@ -759,6 +900,15 @@ if (successMineBtn) {
 }
 
 function initApp() {
+    const items = readItems();
+    if (stampLegacyCompletionTimes(items)) {
+        try {
+            saveItems(items);
+        } catch (error) {
+            console.error("迁移旧完成状态时间失败：", error);
+        }
+    }
+
     switchPage("home", "校园寻物");
     renderItems();
 }
