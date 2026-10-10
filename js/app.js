@@ -147,6 +147,39 @@ function escapeHTML(value) {
     });
 }
 
+async function copyTextToClipboard(value) {
+    const text = String(value || "").trim();
+    if (!text) throw new Error("没有可复制的联系方式。");
+
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        try {
+            await navigator.clipboard.writeText(text);
+            return;
+        } catch (error) {
+            // 直接打开本地 HTML 或剪贴板权限受限时，尝试传统复制方式。
+        }
+    }
+
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.setAttribute("aria-hidden", "true");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    textarea.style.left = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    let copied = false;
+    try {
+        copied = typeof document.execCommand === "function" && document.execCommand("copy");
+    } finally {
+        textarea.remove();
+    }
+    if (!copied) throw new Error("浏览器未能访问剪贴板。");
+}
+
 function readItems() {
     try {
         const items = getItems();
@@ -302,7 +335,7 @@ function renderItems() {
 
     itemList.innerHTML = filteredItems.map(function (item) {
         return `
-            <article class="item-card${getItemStatus(item) === "已归还" ? " item-returned" : ""}"
+            <article class="item-card${getItemStatus(item) === getCompletedStatus(item) ? " item-completed" : ""}"
                 data-id="${Number(item.id)}"
                 tabindex="0"
                 role="button">
@@ -349,6 +382,7 @@ function openDetail(id) {
     }
 
     currentItemId = Number(id);
+    const contact = String(item.contact || "").trim();
 
     const detailContent = document.getElementById("detailContent");
 
@@ -386,12 +420,16 @@ function openDetail(id) {
             <div class="contact-card">
                 <h3>发布者联系方式</h3>
                 <p>联系人：${escapeHTML(item.contactName || "校园用户")}</p>
-                <p>联系方式：${escapeHTML(item.contact || "暂未填写联系方式")}</p>
+                <p>联系方式：${escapeHTML(contact || "暂未填写联系方式")}</p>
                 <p>请联系时说明物品名称，并核实物品特征。</p>
             </div>
 
             <button class="primary-btn" id="contactBtn" type="button">
                 联系发布者
+            </button>
+
+            <button class="secondary-btn" id="copyContactBtn" type="button" aria-label="复制联系方式">
+                复制联系方式
             </button>
 
             <button class="secondary-btn" id="detailBackBtn" type="button">
@@ -403,10 +441,24 @@ function openDetail(id) {
     switchPage("detail", "信息详情");
 
     document.getElementById("contactBtn").addEventListener("click", function () {
-        if (item.contact) {
-            showAppModal("请通过以下方式联系发布者：\n" + item.contact, "联系发布者");
+        if (contact) {
+            showAppModal("请通过以下方式联系发布者：\n" + contact, "联系发布者");
         } else {
             showAppModal("发布者暂未填写联系方式。", "联系发布者");
+        }
+    });
+
+    document.getElementById("copyContactBtn").addEventListener("click", async function () {
+        if (!contact) {
+            showAppModal("发布者暂未填写联系方式。", "复制失败");
+            return;
+        }
+
+        try {
+            await copyTextToClipboard(contact);
+            showAppModal("联系方式已复制，可以粘贴使用。", "复制成功");
+        } catch (error) {
+            showAppModal("无法自动复制，请手动复制以下联系方式：\n" + contact, "复制失败");
         }
     });
 
@@ -447,7 +499,7 @@ function renderMine() {
 
     mineList.innerHTML = items.map(function (item) {
         return `
-            <article class="item-card${getItemStatus(item) === "已归还" ? " item-returned" : ""}">
+            <article class="item-card${getItemStatus(item) === getCompletedStatus(item) ? " item-completed" : ""}">
                 <div class="item-image">${escapeHTML(item.icon || "📦")}</div>
 
                 <div class="item-info">

@@ -31,15 +31,15 @@
    const returned=saved().find(x=>x.id===2);
    assert(returned.status==="已归还" && typeof returned.statusUpdatedAt==="number","未记录归还时间");
    const homeCard=d.querySelector('#itemList .item-card[data-id="2"]');
-   assert(homeCard && homeCard.classList.contains("item-returned"),"首页已归还卡片未淡化");
+   assert(homeCard && homeCard.classList.contains("item-completed"),"首页已归还卡片未淡化");
    const undo=d.querySelector('[data-action="undo-completion"][data-id="2"]');
    assert(undo,"未显示撤销按钮");
-   assert(undo.closest(".item-card").classList.contains("item-returned"),"已归还卡片未淡化");
+   assert(undo.closest(".item-card").classList.contains("item-completed"),"已归还卡片未淡化");
    undo.click();
    const restored=saved().find(x=>x.id===2);
    assert(restored.status==="待处理" && !("statusUpdatedAt" in restored),"撤销后状态错误");
    assert(!d.querySelector('[data-action="undo-completion"][data-id="2"]'),"撤销后按钮仍显示");
-   assert(!d.querySelector('#itemList .item-card[data-id="2"]').classList.contains("item-returned"),"撤销后首页卡片仍淡化");
+   assert(!d.querySelector('#itemList .item-card[data-id="2"]').classList.contains("item-completed"),"撤销后首页卡片仍淡化");
   });
   await go("测试13：超过3分钟后隐藏撤销入口",async()=>{
    const expired=clone(base);
@@ -123,11 +123,13 @@
    assert(found.status==="已找到" && typeof found.statusUpdatedAt==="number","已找到状态未记录时间");
    let undo=d.querySelector('[data-action="undo-completion"][data-id="1"]');
    assert(undo && undo.textContent.includes("已找到"),"未显示撤销已找到入口");
+   assert(undo.closest(".item-card").classList.contains("item-completed"),"我的发布已找到卡片未淡化");
+   assert(d.querySelector('#itemList .item-card[data-id="1"]').classList.contains("item-completed"),"首页已找到卡片未淡化");
    undo.click();
    const restored=saved().find(x=>x.id===1);
    assert(restored.status==="待处理" && !("statusUpdatedAt" in restored),"撤销后状态未恢复");
    assert(!d.querySelector('[data-action="undo-completion"][data-id="1"]'),"撤销后入口仍显示");
-   assert(!d.querySelector('#itemList .item-card[data-id="1"]').classList.contains("item-returned"),"寻物卡片被错误淡化");
+   assert(!d.querySelector('#itemList .item-card[data-id="1"]').classList.contains("item-completed"),"撤销后寻物卡片仍淡化");
   });
   await go("测试23：已找到超过3分钟后隐藏撤销入口",async()=>{
    const expired=clone(base);
@@ -145,6 +147,47 @@
    const migrated=saved().find(x=>x.id===1);
    assert(typeof migrated.statusUpdatedAt==="number","旧状态未记录兼容时间");
    assert(d.querySelector('[data-action="undo-completion"][data-id="1"]'),"旧的已找到记录没有撤销入口");
+  });
+  await go("测试25：旧版示例自动补齐演示联系方式",async()=>{
+   const legacy=[
+    {id:1,title:"黑色校园卡",type:"寻物",location:"第一教学楼",date:"2026-10-06",description:"在第一教学楼附近遗失黑色校园卡，希望有同学捡到后联系。",icon:"💳"},
+    {id:2,title:"蓝色水杯",type:"招领",location:"图书馆",date:"2026-10-05",description:"在图书馆自习区发现一个蓝色水杯，请失主联系。",icon:"🥤"},
+    {id:3,title:"黑色钥匙",type:"寻物",location:"学生宿舍区",date:"2026-10-04",description:"一串黑色钥匙可能遗失在宿舍区附近。",icon:"🔑"},
+    {id:4,title:"白色耳机",type:"招领",location:"食堂",date:"2026-10-03",description:"在食堂座位附近发现白色无线耳机。",icon:"🎧"}
+   ];
+   await load(legacy);
+   const migrated=saved();
+   assert(migrated.length===4,"示例条目数量错误");
+   assert(migrated.every(item=>String(item.contact||"").trim() && String(item.contactName||"").trim()),"旧版示例仍有空联系方式");
+   assert(migrated.every(item=>item.contact.endsWith("@example.com")),"演示邮箱格式不正确");
+  });
+  await go("测试26：一键复制联系方式并显示成功提示",async()=>{
+   const d=(await load(base)).document,w=d.defaultView;let copied="";
+   Object.defineProperty(w.navigator,"clipboard",{configurable:true,value:{writeText:async text=>{copied=text}}});
+   d.querySelector('#itemList .item-card[data-id="3"]').click();
+   const button=d.getElementById("copyContactBtn");assert(button,"详情页没有复制联系方式按钮");button.click();
+   await new Promise(resolve=>setTimeout(resolve,0));
+   assert(copied==="other@example.com","复制内容错误");
+   assert(d.getElementById("appModalTitle").textContent==="复制成功","复制成功提示未显示");
+   assert(d.getElementById("appModalMessage").textContent.includes("已复制"),"复制成功提示内容错误");
+  });
+  await go("测试27：剪贴板权限受限时使用兼容复制",async()=>{
+   const d=(await load(base)).document,w=d.defaultView;let copied="";
+   Object.defineProperty(w.navigator,"clipboard",{configurable:true,value:{writeText:async()=>{throw Error("permission denied")}}});
+   w.document.execCommand=function(command){copied=command==="copy" ? w.document.activeElement.value : "";return command==="copy"};
+   d.querySelector('#itemList .item-card[data-id="3"]').click();d.getElementById("copyContactBtn").click();
+   await new Promise(resolve=>setTimeout(resolve,0));
+   assert(copied==="other@example.com","兼容复制没有复制联系方式");
+   assert(d.getElementById("appModalTitle").textContent==="复制成功","兼容复制没有成功提示");
+  });
+  await go("测试28：复制失败时提供手动复制内容",async()=>{
+   const d=(await load(base)).document,w=d.defaultView;
+   Object.defineProperty(w.navigator,"clipboard",{configurable:true,value:{writeText:async()=>{throw Error("permission denied")}}});
+   w.document.execCommand=()=>false;
+   d.querySelector('#itemList .item-card[data-id="3"]').click();d.getElementById("copyContactBtn").click();
+   await new Promise(resolve=>setTimeout(resolve,0));
+   assert(d.getElementById("appModalTitle").textContent==="复制失败","复制失败没有提示");
+   assert(d.getElementById("appModalMessage").textContent.includes("other@example.com"),"没有提供手动复制内容");
   });
  }finally{oldData===null?localStorage.removeItem(KEY):localStorage.setItem(KEY,oldData);oldOwner===null?localStorage.removeItem(OWNER):localStorage.setItem(OWNER,oldOwner);summary.textContent="测试结束：通过 "+p+" 项，失败 "+f+" 项。";run.disabled=false}}
  run.addEventListener("click",all);

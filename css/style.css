@@ -152,7 +152,7 @@ button {
     transition: transform .15s ease, box-shadow .15s ease;
 }
 
-.item-card.item-returned {
+.item-card.item-completed {
     opacity: .62;
     filter: grayscale(.7);
 }
