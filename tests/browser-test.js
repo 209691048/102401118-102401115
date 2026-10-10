@@ -78,13 +78,13 @@
    assert(!d.querySelector('[data-action="undo-completion"][data-id="2"]'),"过期后仍显示撤销入口");
    assert(d.getElementById("appModalTitle").textContent==="无法撤销","缺少过期提示弹窗");
   });
-  await go("测试18：他人、旧数据与无归属记录不提供撤销",async()=>{
+  await go("测试18：他人、无归属与过期记录不提供撤销",async()=>{
    const data=clone(base);data[0].publisherId=undefined;data[0].status="已归还";data[0].statusUpdatedAt=Date.now();
    data[1].publisherId="other";data[1].status="已归还";data[1].statusUpdatedAt=Date.now();
-   data[3].status="已归还";delete data[3].statusUpdatedAt;
+   data[3].status="已归还";data[3].statusUpdatedAt=Date.now()-180001;
    const d=(await load(data)).document;d.getElementById("mineNavBtn").click();
    assert(d.querySelectorAll("#mineList .item-card").length===1,"我的发布归属筛选错误");
-   assert(!d.querySelector('[data-action="undo-completion"]'),"无权或旧数据仍有撤销入口");
+   assert(!d.querySelector('[data-action="undo-completion"]'),"无权或过期状态仍有撤销入口");
   });
   await go("测试19：标题按文本显示以防注入HTML",async()=>{
    const data=clone(base);data[0].title='<img src=x onerror="alert(1)">';
