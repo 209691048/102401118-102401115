@@ -137,12 +137,14 @@
    d.getElementById("mineNavBtn").click();
    assert(!d.querySelector('[data-action="undo-completion"][data-id="1"]'),"过期后仍显示撤销已找到入口");
   });
-  await go("测试24：旧的已找到状态没有撤销时间时不提供撤销",async()=>{
+  await go("测试24：旧的已找到状态首次打开时获得一次撤销机会",async()=>{
    const legacy=clone(base);
    legacy[0].status="已找到";
    const d=(await load(legacy)).document;
    d.getElementById("mineNavBtn").click();
-   assert(!d.querySelector('[data-action="undo-completion"][data-id="1"]'),"旧数据错误显示撤销入口");
+   const migrated=saved().find(x=>x.id===1);
+   assert(typeof migrated.statusUpdatedAt==="number","旧状态未记录兼容时间");
+   assert(d.querySelector('[data-action="undo-completion"][data-id="1"]'),"旧的已找到记录没有撤销入口");
   });
  }finally{oldData===null?localStorage.removeItem(KEY):localStorage.setItem(KEY,oldData);oldOwner===null?localStorage.removeItem(OWNER):localStorage.setItem(OWNER,oldOwner);summary.textContent="测试结束：通过 "+p+" 项，失败 "+f+" 项。";run.disabled=false}}
  run.addEventListener("click",all);

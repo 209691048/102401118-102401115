@@ -216,6 +216,25 @@ function getItemStatus(item) {
 }
 
 
+function stampLegacyCompletionTimes(items, now) {
+    if (!Array.isArray(items)) return false;
+    const timestamp = typeof now === "number" ? now : Date.now();
+    let changed = false;
+
+    items.forEach(function (item) {
+        if (!item || (item.type !== "寻物" && item.type !== "招领") ||
+            getItemStatus(item) !== getCompletedStatus(item)) return;
+
+        const markedAt = item.statusUpdatedAt;
+        if (markedAt == null || !Number.isFinite(Number(markedAt))) {
+            item.statusUpdatedAt = timestamp;
+            changed = true;
+        }
+    });
+
+    return changed;
+}
+
 function canUndoCompletedStatus(item, now) {
     if (!item || (item.type !== "寻物" && item.type !== "招领") ||
         getItemStatus(item) !== getCompletedStatus(item)) return false;
@@ -829,6 +848,15 @@ if (successMineBtn) {
 }
 
 function initApp() {
+    const items = readItems();
+    if (stampLegacyCompletionTimes(items)) {
+        try {
+            saveItems(items);
+        } catch (error) {
+            console.error("迁移旧完成状态时间失败：", error);
+        }
+    }
+
     switchPage("home", "校园寻物");
     renderItems();
 }
